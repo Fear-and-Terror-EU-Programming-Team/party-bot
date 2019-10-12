@@ -60,7 +60,7 @@ async def on_reaction_add(reaction, user):
 		if str(message_author) == bot_client:
 			if str(user) != bot_client:
 				print("test")
-				# await .send(message_author, f"{user} joined your raid!")
+				await .send(message_author, f"{user} joined your raid!")
 				print(str(user), "reacted with", str(reaction), "in", channel)
 
 

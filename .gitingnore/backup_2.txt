@@ -1,46 +1,71 @@
 ########################################################################################################################
 # Code info:
+# Language = Python
 # Version = 1.0.0
 ########################################################################################################################
 
 # IMPORT
 import discord
+from discord.ext import commands
 
 # SYSTEM VARIABLES (TOKEN TO BE CHANGED)
 token = "NjMxNDkzMTE4NDk1MjkzNDQw.XZ-OXA.s--Vn64Wppd5DK0YwJZOfnmtSjY"
 bot_client = "FaT - Test Bot#4431"
-client = discord.Client()
+client = commands.Bot(command_prefix="$")
 
 # SERVER VARIABLES (SERVER SPECIFIC)
 allowed_channels = ["general"]  # list of allowed channels where the bot reads commands from
-bot_commands = ["$StartRaid"]  # list with all the bot commands
+bot_commands = ["StartRaid"]  # list with all the bot commands
 raid_notification = "631524437879160874"  # role (id, str) the bot tags when announcing raid
 raid_emoji = "✅"     # emoji to be reacted to join the raid
 raid_channel_id = 631525965704724517   # channel (id, int) in which the bot announces a raid
 
 # CODE
-@client.event
-async def on_message(message):
+# @client.event
+# async def on_ready():
+# 	print("Bot online")
+
+
+@client.command()
+async def StartRaid(ctx):
 	####################################################################################################################
 	# Author: ʝυʂƚ α ɳσɾɱαʅ ɠυყ
-	# DateCreated: 10 / 09 / 2019
-	# Purpose: To execute a line of code when a message gets sent in the discord server
+	# DateCreated: 11 / 09 / 2019
+	# Purpose: To execute a line of code when a message containing "{prefix}StartRaid" gets sent in the discord server
 	####################################################################################################################
 
 	# VARIABLES
+	print("done_1")
 	raid_channel = client.get_channel(raid_channel_id)  # channel (id) in which the bot announces a raid
-	raid_message = f"> <@&{raid_notification}> <@{message.author.id}> has started a raid!\n" \
+	raid_message = f"> <@&{raid_notification}> <@{ctx.message.author.id}> has started a raid!\n" \
 					f"> React to this message with {raid_emoji} if you want to join it!\n" \
 					f"> Remember that the max amount of people to join is 5 so react fast!"
 
 	# CODE
-	if str(message.author) != bot_client:
+	if str(ctx.message.author) != bot_client:
+		if str(ctx.message.channel) in allowed_channels:
+			await raid_channel.send(raid_message + "\n")
+
+
+print("done_3")
+
+
+@client.event
+async def on_message(message):
+	####################################################################################################################
+	# Author: ʝυʂƚ α ɳσɾɱαʅ ɠυყ
+	# DateCreated: 11 / 09 / 2019
+	# Purpose: To execute a line of code when a message gets sent in the discord server
+	####################################################################################################################
+
+	# CODE
+	if str(message.author) == bot_client:
 		if str(message.channel) in allowed_channels:
-			if message.content in bot_commands:
-				if message.content.find(bot_commands[0]) != -1:
-					await raid_channel.send(raid_message + "\n")
-	else:
-		await message.add_reaction(raid_emoji)
+			await message.add_reaction(raid_emoji)
+
+
+print("done_4")
+
 
 @client.event
 async def on_reaction_add(reaction, user):
@@ -63,5 +88,6 @@ async def on_reaction_add(reaction, user):
 				# await .send(message_author, f"{user} joined your raid!")
 				print(str(user), "reacted with", str(reaction), "in", channel)
 
-
+print("done_2")
 client.run(token)
+print("done_5")
