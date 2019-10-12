@@ -6,14 +6,15 @@
 # IMPORT
 import discord
 
-# SYSTEM VARIABLES (TOKEN TO BE CHANGED)
-token = "NjMxNDkzMTE4NDk1MjkzNDQw.XZ-OXA.s--Vn64Wppd5DK0YwJZOfnmtSjY"
+# SYSTEM VARIABLES (ONLY TOKEN TO BE CHANGED)
+token = "NjMxNDkzMTE4NDk1MjkzNDQw.XaIZrA.I6n4X7IjL5JiRkgYEvmhdnZ55G8"
 bot_client = "FaT - Test Bot#4431"
 client = discord.Client()
+raid_leader = ""
 
 # SERVER VARIABLES (SERVER SPECIFIC)
 allowed_channels = ["general"]  # list of allowed channels where the bot reads commands from
-bot_commands = ["$StartRaid"]  # list with all the bot commands
+bot_commands = ["$StartRaid", "$CloseRaid"]  # list with all the bot commands
 raid_notification = "631524437879160874"  # role (id, str) the bot tags when announcing raid
 raid_emoji = "✅"     # emoji to be reacted to join the raid
 raid_channel_id = 631525965704724517   # channel (id, int) in which the bot announces a raid
@@ -32,15 +33,24 @@ async def on_message(message):
 	raid_message = f"> <@&{raid_notification}> <@{message.author.id}> has started a raid!\n" \
 					f"> React to this message with {raid_emoji} if you want to join it!\n" \
 					f"> Remember that the max amount of people to join is 5 so react fast!"
+	global raid_leader
 
 	# CODE
 	if str(message.author) != bot_client:
 		if str(message.channel) in allowed_channels:
 			if message.content in bot_commands:
 				if message.content.find(bot_commands[0]) != -1:
+					raid_leader = message.author
 					await raid_channel.send(raid_message + "\n")
+				if message.content.find(bot_commands[1]) != -1:
+					if message.author == raid_leader:
+						await raid_channel.send(f"{message.author} your raid has been closed.\n")
+						await message.edit(content="This raid has been closed by its leader")
+
 	else:
-		await message.add_reaction(raid_emoji)
+		if " joined your raid!" not in message.content:
+			await message.add_reaction(raid_emoji)
+
 
 @client.event
 async def on_reaction_add(reaction, user):
@@ -50,18 +60,19 @@ async def on_reaction_add(reaction, user):
 	# Purpose: To execute a line of code when a reaction gets added to a message in the discord server
 	####################################################################################################################
 
+	# VARIABLES
 	channel = reaction.message.channel  # channel in which the emoji has been added
 	message_author = reaction.message.author
-	print(message_author, type(message_author))
-	print(channel.id, type(channel.id))
-	print(user, type(user))
+	raid_message = f"> <@&{raid_notification}> <@{raid_leader}> has started a raid!\n" \
+					f"> React to this message with {raid_emoji} if you want to join it!\n" \
+					f"> Remember that the max amount of people to join is 5 so react fast!\n" \
+					f"> People who have joined the raid:"
+
 	if channel.id == raid_channel_id:
-		print("done_1")
 		if str(message_author) == bot_client:
 			if str(user) != bot_client:
-				print("test")
-				# await .send(message_author, f"{user} joined your raid!")
-				print(str(user), "reacted with", str(reaction), "in", channel)
+				await raid_leader.send(f"{user} joined your raid!")
+				await reaction.message.edit(content=(raid_message + f"\n> <@{user}>"))
 
 
 client.run(token)
