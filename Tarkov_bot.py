@@ -363,7 +363,13 @@ async def on_reaction_add(reaction, user):
 	elif reaction.message.channel.id == role_assignment_channel_id:
 		if str(reaction.message.author) == bot_client:
 			if (str(user) != bot_client) and (role_assignment_role not in str(user.roles)):
-				await user.add_roles(user, role_assignment_role)
+				memberAddRole = await reaction.message.guild.fetch_member(user.id)
+				if not memberAddRole:
+					
+					return
+				role = get(reaction.message.guild.roles, name=role_assignment_role)
+				
+				await memberAddRole.add_roles(role)
 
 	# Raiders-only message
 	elif reaction.message.channel.id == raiders_channel_id:

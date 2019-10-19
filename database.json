@@ -16,7 +16,7 @@
                 "$ForceCloseOnlyRaiders",
                 "$CloseOnlyRaiders"
             ],
-            "bot_token": "NjMxNDkzMTE4NDk1MjkzNDQw.XadHEQ.nIbEo-mVfergbaPCNLZCwaah4Pc",
+            "bot_token": "NjMxNDkzMTE4NDk1MjkzNDQw.Xatolg.6cUrQiP8siG97J0aJ4HXJw6UFbI",
             "bot_client": "FaT - Test Bot#4431"
         },
         "general": {
@@ -39,7 +39,7 @@
                 "- role_assignment_emoji: [str] Emoji (unicode) to be reacted to in order to receive the role..",
                 "- role_assignment_role: [str] Role to be assigned when reacting to the message. EXAMPLE = Example Role"
             ],
-            "role_assignment_message_id": "635071133187833888",
+            "role_assignment_message_id": "635216178272403467",
             "role_assignment_channel_id": 633736020738703400,
             "role_assignment_emoji": "\u2705",
             "role_assignment_role": "Tarkov"
