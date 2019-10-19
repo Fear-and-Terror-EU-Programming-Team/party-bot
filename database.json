@@ -1,5 +1,81 @@
 {
-  "tarkov_bot": {
-    "notification_message_id": "634038368795361303"
-  }
+    "tarkov_bot": {
+        "bot": {
+            "__comment": [
+                "In the bot category we store variables that affect the most basic bot functions.",
+                "- bot_commands: [list (str)] All bot's commands. DO NOT CHANGE THE ORDER OF THE COMMANDS! A command names must NOT be the same as another name. A command names must NOT contain another name.",
+                "- bot_token: [str] Token the bot runs on. CHANGE ONLY IF YOU KNOW WHAT IT IS!",
+                "- bot_client: [str] Name and tag of the bot. EXAMPLE = example_name#0001"
+            ],
+            "bot_commands": [
+                "$StartRaid",
+                "$CloseRaid",
+                "$Help",
+                "$ForceCloseRaid",
+                "$StartOnlyRaiders",
+                "$ForceCloseOnlyRaiders",
+                "$CloseOnlyRaiders"
+            ],
+            "bot_token": "NjMxNDkzMTE4NDk1MjkzNDQw.XadHEQ.nIbEo-mVfergbaPCNLZCwaah4Pc",
+            "bot_client": "FaT - Test Bot#4431"
+        },
+        "general": {
+            "__comment": [
+                "In the general category we store variables that affect the message filtering of the bot.",
+                "- allowed_channels: [list (str)] Channels in which the bot looks for commands. EXAMPLE = example-channel",
+                "- allowed_role: [str] Role which can use admin commands. EXAMPLE = Example Role"
+            ],
+            "allowed_channels": [
+                "general"
+            ],
+            "allowed_role": "Moderator"
+        },
+        "role_assignment": {
+            "__comment": [
+                "In the notificaiton category we store variables that affect the role assignment message.",
+                "- role_assignment_message_id: [str] ID of the previous assignment message.",
+                "If there is not a previous assignment message or the bot runs into any deleting related errors change this value to None (must still be str).",
+                "- role_assignment_channel_id: [int] ID of the channel in which the role gets assigned.",
+                "- role_assignment_emoji: [str] Emoji (unicode) to be reacted to in order to receive the role..",
+                "- role_assignment_role: [str] Role to be assigned when reacting to the message. EXAMPLE = Example Role"
+            ],
+            "role_assignment_message_id": "635071133187833888",
+            "role_assignment_channel_id": 633736020738703400,
+            "role_assignment_emoji": "\u2705",
+            "role_assignment_role": "Tarkov"
+        },
+        "raid": {
+            "__comment": [
+                "In this category we store variables that affect the raid functions of the bot.",
+                "- raid_role_id: [str] ID of the role to be mentioned when announcing a raid.",
+                "- raid_emoji: [str] Emoji to be reacted to in order to join the raid.",
+                "- raid_channel_id: [int] ID of the channel in which the raids get announced."
+            ],
+            "raid_role_id": "631524437879160874",
+            "raid_emoji": "\u2705",
+            "raid_channel_id": 631525965704724517
+        },
+        "raiders": {
+            "__comment": [
+                "In this category we store variables that affect the raiders-only raid functions of the bot.",
+                "- raiders_role: [list (str)] ID of the roles to be mentioned when announcing a raiders-only raid.",
+                "- raiders_emoji: [str] Emoji to be reacted to in order to join the raiders-only raid.",
+                "- raiders_channel_id: [int] ID of the channel in which the raiders-only raids get announced.",
+                "- allowed_raiders: [list (str)] Role which can use raiders commands. Write lowest tear first and the others in order of tear. EXAMPLE = Example Role"
+            ],
+            "raiders_role": [
+                "634436647483736109",
+                "634436508170059776",
+                "634433114021691392",
+                "634436752282615829"
+            ],
+            "raiders_emoji": "\u2705",
+            "raiders_channel_id": 634433384726265872,
+            "allowed_raiders": [
+                "RaiderMember",
+                "RaiderVeteran",
+                "RaiderLeadershipCommittee"
+            ]
+        }
+    }
 }
