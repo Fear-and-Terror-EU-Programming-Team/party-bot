@@ -53,7 +53,7 @@ def write_database(category, dictionary, key, new_value):
 	####################################################################################################################
 	# Author: ʝυʂƚ α ɳσɾɱαʅ ɠυყ
 	# DateCreated: 10 / 16 / 2019
-	# Purpose: To replace the value of a key from a dictionary from a category in the .json file
+	# Purpose: To replace the value of a key from a dictionary from a category in the .json file.
 	####################################################################################################################
 
 	# VARIABLES
