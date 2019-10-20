@@ -9,7 +9,7 @@ from discord.utils import get
 import json
 
 # SYSTEM VARIABLES
-database_directory = "database.json"  # directory of the .json file to be used for some short data storage
+database_directory = "database.json"  # directory of the .json file to be used. Every variable can be found there.
 client = discord.Client()
 
 # EMPTY VARIABLES
