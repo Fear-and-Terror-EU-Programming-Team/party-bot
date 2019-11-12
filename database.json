@@ -43,7 +43,7 @@
                 "- role_assignment_emoji: [str] Emoji (unicode) to be reacted to in order to receive the role..",
                 "- role_assignment_role: [str] Role to be assigned when reacting to the message. EXAMPLE = Example Role"
             ],
-            "role_assignment_message_id": "643152206518026263",
+            "role_assignment_message_id": "643877766411976714",
             "role_assignment_channel_id": 636373893753470996,
             "role_assignment_emoji": "\u2705",
             "role_assignment_role": "Raid"

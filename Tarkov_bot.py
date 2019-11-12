@@ -215,8 +215,7 @@ async def on_message(message):
 							raid_active = False
 							for user in raid_members:
 								await user.send("> The raid you joined has been closed by its leader.")
-							for user in server_members:
-								await raid_message.remove_reaction(raid_emoji, user)
+							await raid_message.clear_reactions()
 							raid_members.clear()
 							raid_removed_members.clear()
 						else:
@@ -244,8 +243,7 @@ async def on_message(message):
 										for user in raid_members:
 											await user.send(
 												f"> The raid you joined was forcibly closed by <@{message.author.id}>.")
-										for user in server_members:
-											await raid_message.remove_reaction(raid_emoji, user)
+										await raid_message.clear_reactions()
 										raid_leader = None
 										raid_active = False
 										raid_members.clear()
@@ -295,8 +293,7 @@ async def on_message(message):
 							raiders_active = False
 							for user in raiders_members:
 								await user.send("> The raid you joined has been closed by its leader.")
-							for user in server_members:
-								await raiders_message.remove_reaction(raiders_emoji, user)
+							await raiders_message.clear_reactions()
 							raiders_members.clear()
 							raiders_removed_members.clear()
 						else:
@@ -325,8 +322,7 @@ async def on_message(message):
 											for user in raiders_members:
 												await user.send(
 													f"> The raid you joined was forcibly closed by <@{message.author.id}>.")
-											for user in server_members:
-												await raiders_message.remove_reaction(raiders_emoji, user)
+											await raiders_message.clear_reactions()
 											raiders_leader = None
 											raiders_active = False
 											raiders_members.clear()
@@ -455,48 +451,48 @@ async def on_reaction_add(reaction, user):
 	# Raiders-only message
 	elif reaction.message.channel.id == raiders_channel_id:
 		if str(reaction.message.author) == bot_client:
-			if (str(user) != bot_client) and (user != raiders_leader):
-				if (str(user) not in raiders_members) and (not in_members):
-					if f"Remember that the max amount of people to join is {max_num}. So react fast!" in reaction.message.content:
-						if raiders_num != 0:
-							raiders_members.append(user)
-							message_content = str(reaction.message.content)
-							raiders_num = max_num
-							raiders_slots_left_text_ = None
-							raiders_slots_left_text = None
-							for _ in raiders_members:
-								raiders_num -= 1
-							if raiders_num == 1:
-								raiders_slots_left_text = f"({str(raiders_num)} slot left!)"
-								raiders_slots_left_text_ = f"{str(raiders_num + 1)} slots left!"
-							elif raiders_num > 1:
-								raiders_slots_left_text = f"({str(raiders_num)} slots left!)"
-								raiders_slots_left_text_ = f"{str(raiders_num + 1)} slots left!"
-							elif raiders_num < 1:
-								raiders_slots_left_text = ""
-								raiders_slots_left_text_ = f"{str(raiders_num + 1)} slot left!"
-							message_content = message_content.replace(f"({raiders_slots_left_text_})", raiders_slots_left_text)
-							await raiders_leader.send(f"{user} joined your raid!")
-							if raiders_members_num == 0:
-								await reaction.message.edit(
-									content=f"{message_content}{raiders_raid_text} {raiders_slots_left_text}:\n> - <@{user.id}>")
-							else:
-								await reaction.message.edit(
-									content=f"{message_content}{raiders_raid_text}\n> - <@{user.id}>")
-						if raiders_num == 0:
-							message_content = str(reaction.message.content)
-							message_content = message_content.replace(to_replace, to_replace_with)
-							await reaction.message.edit(content=f"{message_content}")
-							await raiders_leader.send(
-								f"> The raid you started is now full. Please contact all members.")
-							for member in raiders_members:
-								await member.send(
-									f"> The raid you joined is now full. Please contact the raid leader: <@{raiders_leader.id}>.")
-							for user in server_members:
-								await raiders_message.remove_reaction(raiders_emoji, user)
-							raiders_leader = None
-							raiders_active = False
-							raiders_members.clear()
+			if (str(user) != bot_client) and 1+1 == 2:    # (user != raiders_leader):
+				# if (str(user) not in raiders_members) and (not in_members):
+				if f"Remember that the max amount of people to join is {max_num}. So react fast!" in reaction.message.content:
+					if raiders_num != 0:
+						raiders_members.append(user)
+						message_content = str(reaction.message.content)
+						raiders_num = max_num
+						raiders_slots_left_text_ = None
+						raiders_slots_left_text = None
+						for _ in raiders_members:
+							raiders_num -= 1
+						if raiders_num == 1:
+							raiders_slots_left_text = f"({str(raiders_num)} slot left!)"
+							raiders_slots_left_text_ = f"{str(raiders_num + 1)} slots left!"
+						elif raiders_num > 1:
+							raiders_slots_left_text = f"({str(raiders_num)} slots left!)"
+							raiders_slots_left_text_ = f"{str(raiders_num + 1)} slots left!"
+						elif raiders_num < 1:
+							raiders_slots_left_text = ""
+							raiders_slots_left_text_ = f"{str(raiders_num + 1)} slot left!"
+						message_content = message_content.replace(f"({raiders_slots_left_text_})", raiders_slots_left_text)
+						await raiders_leader.send(f"{user} joined your raid!")
+						if raiders_members_num == 0:
+							await reaction.message.edit(
+								content=f"{message_content}{raiders_raid_text} {raiders_slots_left_text}:\n> - <@{user.id}>")
+						else:
+							await reaction.message.edit(
+								content=f"{message_content}{raiders_raid_text}\n> - <@{user.id}>")
+					if raiders_num == 0:
+						message_content = str(reaction.message.content)
+						message_content = message_content.replace(to_replace, to_replace_with)
+						await reaction.message.edit(content=f"{message_content}")
+						await raiders_leader.send(
+							f"> The raid you started is now full. Please contact all members.")
+						for member in raiders_members:
+							await member.send(
+								f"> The raid you joined is now full. Please contact the raid leader: <@{raiders_leader.id}>.")
+						for user in server_members:
+							await raiders_message.remove_reaction(raiders_emoji, user)
+						raiders_leader = None
+						raiders_active = False
+						raiders_members.clear()
 
 	# Role assignment message
 	elif reaction.message.channel.id == role_assignment_channel_id:
@@ -553,7 +549,7 @@ async def on_reaction_remove(reaction, user):
 	# Raiders-only message
 	elif reaction.message.channel.id == raiders_channel_id:
 		if reaction.message.id == raiders_message.id:
-			if user in raiders_members and user not in raiders_removed_members:
+			if user in raiders_members and 1+1 == 2:    # user not in raiders_removed_members:
 				if len(raiders_members) != 0:
 					raiders_members.remove(user)
 					raiders_removed_members.append(user)
