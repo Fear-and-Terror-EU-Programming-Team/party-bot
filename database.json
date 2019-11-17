@@ -16,7 +16,7 @@
                 "$ForceCloseOnlyRaiders",
                 "$CloseOnlyRaiders"
             ],
-            "bot_token": "NjQxMDY4OTg4OTY0NTM2MzYx.XcDxKw.hSrrRS7AEXy0LTnxiLYROh8a-Zs",
+            "bot_token": "NjQxMDY4OTg4OTY0NTM2MzYx.XctagA.Bda1rc1ArMb9Y4zYc8rMXecoPc8",
             "bot_client": "FaT Tarkov Bot#6869"
         },
         "general": {
@@ -37,16 +37,28 @@
         "role_assignment": {
             "__comment": [
                 "In the role_assignment category we store variables that affect the role assignment message.",
-                "- role_assignment_message_id: [str] ID of the previous assignment message.",
+                "- role_assignment_message_ids: [list (str)] IDs of the previous assignment messages. First str is for the raid message. Second str is for the raiders message.",
                 "If there is not a previous assignment message or the bot runs into any deleting related errors change this value to null (must not be in a str).",
-                "- role_assignment_channel_id: [int] ID of the channel in which the role gets assigned.",
-                "- role_assignment_emoji: [str] Emoji (unicode) to be reacted to in order to receive the role..",
-                "- role_assignment_role: [str] Role to be assigned when reacting to the message. EXAMPLE = Example Role"
+                "- role_assignment_channel_ids: [list (int)] IDs of the channels in which the roles get assigned. First id is for the raid role. Second id is for the raiders role.",
+                "- role_assignment_emojis: [list (str)] Emoji (unicode) to be reacted to in order to receive the role. First str is for the raid emoji. Second str is for the raiders emoji.",
+                "- role_assignment_roles: [list (str)] Role to be assigned when reacting to the message. First str is for the raid role. Second str is for the raiders role. EXAMPLE = Example Role"
             ],
-            "role_assignment_message_id": "643877766411976714",
-            "role_assignment_channel_id": 636373893753470996,
-            "role_assignment_emoji": "\u2705",
-            "role_assignment_role": "Raid"
+            "role_assignment_message_ids": [
+                "645608903593164830",
+                "645608904121778187"
+            ],
+            "role_assignment_channel_ids": [
+                636373893753470996,
+                644195394997321773
+            ],
+            "role_assignment_emojis": [
+                "\u2705",
+                "\u2705"
+            ],
+            "role_assignment_roles": [
+                "Raid",
+                "Raiders"
+            ]
         },
         "raid": {
             "__comment": [
@@ -64,18 +76,13 @@
         "raiders": {
             "__comment": [
                 "In this category we store variables that affect the raiders-only raid functions of the bot.",
-                "- raiders_role: [list (str)] ID of the roles to be mentioned when announcing a raiders-only raid.",
+                "- raiders_role: [str] ID of the role to be mentioned when announcing a raiders-only raid.",
                 "- raiders_emoji: [str] Emoji to be reacted to in order to join the raiders-only raid.",
                 "- raiders_channel_id: [int] ID of the channel in which the raiders-only raids get announced.",
                 "- raiders_allowed_channel: [str] Name of the channel in which the bot looks for raiders-only raid commands.",
                 "- allowed_raiders: [list (str)] Role which can use raiders commands. Write lowest tear first and the others in order of tear. EXAMPLE = Example Role"
             ],
-            "raiders_roles": [
-                "594335864990072832",
-                "594999834143096865",
-                "595000051932201013",
-                "543603939527098379"
-            ],
+            "raiders_role": "643984537629753365",
             "raiders_emoji": "\u2705",
             "raiders_channel_id": 636374051169763357,
             "raiders_allowed_channel": "bot-command-line",
