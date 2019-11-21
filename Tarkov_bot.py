@@ -9,7 +9,7 @@ from discord.utils import get
 import json
 
 # SYSTEM VARIABLES
-database_directory = "database.json"  # directory of the .json file to be used for some short data storage
+database_directory = "test_database.json"  # directory of the .json file to be used for some short data storage
 client = discord.Client()
 
 # EMPTY VARIABLES
@@ -128,10 +128,13 @@ async def on_ready():
 	raiders_notification_channel = client.get_channel(role_assignment_channel_ids[1])
 
 	# CODE
-	if role_assignment_message_ids[0] is not None:
-		await client.http.delete_message(raid_notification_channel.id, role_assignment_message_ids[0])
-	if role_assignment_message_ids[1] is not None:
-		await client.http.delete_message(raiders_notification_channel.id, role_assignment_message_ids[1])
+	try:
+		if role_assignment_message_ids[0] is not None:
+			await client.http.delete_message(raid_notification_channel.id, role_assignment_message_ids[0])
+		if role_assignment_message_ids[1] is not None:
+			await client.http.delete_message(raiders_notification_channel.id, role_assignment_message_ids[1])
+	except discord.errors.NotFound:
+		pass
 	await raid_notification_channel.send(f"If you want to be notified whenever a raid starts please react down below with {role_assignment_emojis[0]}.")
 	await raiders_notification_channel.send(f"If you want to be notified whenever a raid starts please react down below with {role_assignment_emojis[1]}.")
 	if bot_activity is not None:
@@ -160,8 +163,7 @@ async def on_message(message):
 	global raiders_removed_members
 
 	raid_channel = client.get_channel(raid_channel_id)  # channel (id) in which the bot announces a raid
-	raiders_channel = client.get_channel(
-		raiders_channel_id)  # channel (id) in which the bot announces a raiders-only raid
+	raiders_channel = client.get_channel(raiders_channel_id)  # channel (id) in which the bot announces a raiders-only raid
 
 	raid_text = f"> <@&{raid_role_id}> <@{message.author.id}> has started a raid!\n" \
 				f"> React to this message with {raid_emoji} if you want to join it!\n" \
@@ -516,15 +518,12 @@ async def on_reaction_add(reaction, user):
 						if not member_add_role:
 							return
 						role = get(reaction.message.guild.roles, name=role_assignment_roles[0])
-						await member_add_role.add_roles(role)
-						has_not_role = None
-						for role in user.roles:
-							if str(role) == role_assignment_roles[0]:
-								has_not_role = False
-						if has_not_role is not False:
-							await user.send(f"You have successfully received the {role_assignment_roles[0]} role.")
-						else:
-							await user.send(f"There has been a problem with the assignment of the role. Please try again.\nIf the problem persists contact a staff member.")
+						try:
+							await member_add_role.add_roles(role)
+						except:
+							await user.send(
+								f"There has been a problem with the assignment of the role. Please try again.\nIf the problem persists contact a staff member.")
+						await user.send(f"You have successfully received the {role_assignment_roles[0]} role.")
 
 	# Raiders role assignment message
 	elif reaction.message.channel.id == role_assignment_channel_ids[1]:
@@ -540,15 +539,11 @@ async def on_reaction_add(reaction, user):
 						if not member_add_role:
 							return
 						role = get(reaction.message.guild.roles, name=role_assignment_roles[1])
-						await member_add_role.add_roles(role)
-						has_not_role = None
-						for role in user.roles:
-							if str(role) == role_assignment_roles[1]:
-								has_not_role = False
-						if has_not_role is not False:
-							await user.send(f"You have successfully received the {role_assignment_roles[1]} role.")
-						else:
+						try:
+							await member_add_role.add_roles(role)
+						except:
 							await user.send(f"There has been a problem with the assignment of the role. Please try again.\nIf the problem persists contact a staff member.")
+						await user.send(f"You have successfully received the {role_assignment_roles[1]} role.")
 
 
 @client.event
@@ -623,15 +618,11 @@ async def on_reaction_remove(reaction, user):
 				if not member_add_role:
 					return
 				role = get(reaction.message.guild.roles, name=role_assignment_roles[0])
-				await member_add_role.remove_roles(role)
-				has_role = None
-				for role in user.roles:
-					if str(role) == role_assignment_roles[0]:
-						has_role = True
-				if has_role is not True:
-					await user.send(f"The removal of the {role_assignment_roles[0]} role was successful.")
-				else:
+				try:
+					await member_add_role.remove_roles(role)
+				except:
 					await user.send(f"There has been a problem with the removal of the role. Please try again.\nIf the problem persists contact a staff member.")
+				await user.send(f"The removal of the {role_assignment_roles[0]} role was successful.")
 
 	# Raiders role assignment message
 	elif str(reaction.message.id) == str(role_assignment_message_ids[1]):
@@ -645,14 +636,10 @@ async def on_reaction_remove(reaction, user):
 				if not member_add_role:
 					return
 				role = get(reaction.message.guild.roles, name=role_assignment_roles[1])
-				await member_add_role.remove_roles(role)
-				has_role = None
-				for role in user.roles:
-					if str(role) == role_assignment_roles[1]:
-						has_role = True
-				if has_role is not True:
-					await user.send(f"The removal of the {role_assignment_roles[1]} role was successful.")
-				else:
+				try:
+					await member_add_role.remove_roles(role)
+				except:
 					await user.send(f"There has been a problem with the removal of the role. Please try again.\nIf the problem persists contact a staff member.")
+				await user.send(f"The removal of the {role_assignment_roles[1]} role was successful.")
 
 client.run(bot_token)
