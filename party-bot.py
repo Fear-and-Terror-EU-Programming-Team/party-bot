@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 '''
 Fear and Terror's bot for party matchmaking on Discord
 '''
@@ -7,6 +8,7 @@ from discord.utils import get
 from discord.ext import commands
 from config import *
 import jsonpickle
+from random import randint
 
 DATABASE_FILENAME = "database.json"
 
@@ -31,19 +33,9 @@ async def startparty(ctx):
 
     db = read_database()
     subscriber_role = db[ctx.channel.id].get_subscriber_role(ctx.guild)
-    embed = discord.Embed.from_dict({
-        "color": 0x00FF00,
-        "description": f"{ctx.author.mention} has just launched a party!\n" +
-                       f"React with {BOT_JOIN_EMOJI} to join the party."
-    })
-    embed.add_field(name=Strings.PARTY_LEADER,
-                    value=ctx.author.mention, inline=True)
-    embed.add_field(name=Strings.PARTY_MEMBERS,
-                    value="None", inline=True)
-    embed.add_field(name=Strings.SLOTS_LEFT,
-                    value=db[ctx.channel.id].max_slots, inline=True)
+    party = Party(ctx.channel, ctx.author, db[ctx.channel.id].max_slots - 1)
     message = await ctx.send(f"{subscriber_role.mention} {ctx.author.mention}",
-                             embed=embed)
+                             embed=party.to_embed())
     db[ctx.channel.id].set_current_party_message(message)
     save_database(db)
     await message.add_reaction(BOT_JOIN_EMOJI)
@@ -91,7 +83,12 @@ async def closeparty_error(ctx, error):
 
 @bot.command()
 @commands.has_role(BOT_ADMIN_ROLE)
-async def activatechannel(ctx, subscriber_role : discord.Role, max_slots : int):
+async def activatechannel(ctx, game_name : str, subscriber_role : discord.Role,
+                          max_slots : int, channel_above_id : int):
+    channel_above = ctx.guild.get_channel(channel_above_id)
+    if channel_above is None:
+        raise commands.errors.BadArgument()
+
     db = read_database()
     if ctx.channel.id not in db.keys():
         await ctx.send(f"This channel has been activated for party matchmaking. " +
@@ -99,7 +96,9 @@ async def activatechannel(ctx, subscriber_role : discord.Role, max_slots : int):
     else:
         await ctx.send(f"Channel configuration updated.")
 
-    channel_info = ChannelInformation(ctx.channel, subscriber_role, max_slots)
+
+    channel_info = ChannelInformation(ctx.channel, subscriber_role,
+                                      max_slots, channel_above)
     db[ctx.channel.id] = channel_info
     save_database(db)
 
@@ -107,7 +106,8 @@ async def activatechannel(ctx, subscriber_role : discord.Role, max_slots : int):
 @activatechannel.error
 async def activatechannel_error(ctx, error):
     error_handlers = get_default_error_handlers(ctx, "activatechannel",
-                                                "@SUBSCRIBER_ROLE MAX_SLOTS")
+                                                "GAME_NAME @SUBSCRIBER_ROLE " +
+                                                "MAX_SLOTS CHANNEL_ABOVE_ID")
     await handle_error(ctx, error, error_handlers)
 
 
@@ -129,10 +129,110 @@ async def deactivatechannel_error(ctx, error):
 
 @bot.event
 async def on_raw_reaction_add(payload):
-    rp = await unwrap_payload(payload)
-    await rp.channel.send("react added")
+    await handle_react(payload, True)
 
-    # TODO
+
+@bot.event
+async def on_raw_reaction_remove(payload):
+    await handle_react(payload, False)
+
+
+async def handle_react(payload, was_added):
+    rp = await unwrap_payload(payload)
+    if rp.member == rp.guild.me: # ignore bot reactions
+        return
+    if rp.message.author != rp.guild.me: # ignore reactions on non-bot messages
+        return
+    # ignore reactions on messages other than the party message
+    # (identified by having exactly one embed)
+    if len(rp.message.embeds) != 1:
+        return
+
+    if rp.emoji.name in emoji_handlers.keys():
+        add_handler, remove_handler = emoji_handlers[rp.emoji.name]
+        if was_added:
+            await add_handler(rp)
+        else:
+            await remove_handler(rp)
+
+
+async def add_member(rp):
+    party = await Party.from_party_message(rp.message)
+    if party.slots_left < 1 \
+            or rp.member == party.leader: # leader can't join as member
+        await rp.message.remove_reaction(Emojis.WHITE_CHECK_MARK, rp.member)
+        return
+
+    await party.add_member(rp.member, rp.message)
+    if party.slots_left < 1:
+        await handle_full_party(party, rp.message)
+
+
+async def remove_member(rp):
+    party = await Party.from_party_message(rp.message)
+    if rp.member not in party.members:
+        # This shouldn't happen. If it does, ignore it
+        return
+    if rp.member == party.leader: # leader can't leave
+        return
+
+    await party.remove_member(rp.member, rp.message)
+
+
+async def handle_full_party(party, party_message):
+    channel = party_message.channel
+    guild = party_message.guild
+    channel_info = read_database()[channel.id]
+    channel_above = channel_info.get_channel_above(guild)
+    category = guild.get_channel(channel_above.category_id)
+
+    overwrites = {
+        guild.default_role  : discord.PermissionOverwrite(read_messages=True,
+                                                          connect=False),
+        guild.me            : discord.PermissionOverwrite(read_messages=True),
+        party.leader        : discord.PermissionOverwrite(read_messages=True,
+                                                          connect=True)
+    }
+    overwrites.update({
+        member              : discord.PermissionOverwrite(read_messages=True,
+                                                          connect=True)
+        for member in party.members
+    })
+
+    # TODO: game name in party channel name
+    vc = await guild.create_voice_channel("party-%04i" % randint(0, 9999),
+                                          category=category,
+                                          overwrites=overwrites)
+    await vc.edit(position=channel_above.position + 1)
+
+    # edit original party message
+    await party_message.edit(embed=None, content = \
+        f"Matchmaking is done. If you're a member, " +
+        f"you can now connect to {vc.mention}.")
+    await party_message.clear_reactions()
+    mentions = f"{party.leader.mention} " + \
+               " ".join([m.mention for m in party.members])
+
+    # send additional message, notifying members
+    await channel.send(f"{mentions}. Matchmaking done. " +
+                       f"Connect to {vc.mention}.")
+    db = read_database()
+    db[channel.id].unset_current_party_message()
+    save_database(db)
+
+
+# TODO: prevent instant deletion via timer
+@bot.event
+async def on_voice_state_update(member, before, after):
+    channel = before.channel
+    if channel is None\
+            or not channel.name.startswith("party-"): # ignore other channels
+        return
+    if after.channel == channel: # only tracks disconnects
+        return
+
+    if len(channel.members) == 0:
+        await channel.delete()
 
 
 ###############################################################################
@@ -165,12 +265,15 @@ def save_database(db):
 
 class ChannelInformation():
     '''Contains the relevant information about an active channel.'''
-    def __init__(self, channel, subscriber_role, max_slots):
+    def __init__(self, game_name, channel, subscriber_role,
+                 max_slots, channel_above):
         # Store all objects as their IDs to allow easier serialization
+        self.game_name = game_name
         self.__channel_id = channel.id
         self.__subscriber_role_id = subscriber_role.id
         self.__current_party_message_id = None
         self.max_slots = max_slots
+        self.__channel_above_id = channel_above.id
 
     async def get_current_party_message(self, guild):
         if self.__current_party_message_id == None:
@@ -186,6 +289,9 @@ class ChannelInformation():
 
     def get_subscriber_role(self, guild):
         return guild.get_role(self.__subscriber_role_id)
+
+    def get_channel_above(self, guild):
+        return guild.get_channel(self.__channel_above_id)
 
 
 class Strings():
@@ -258,6 +364,93 @@ async def unwrap_payload(payload):
     await rp._init(payload)
     return rp
 
+
+class Party():
+    '''Python object representing an active party.
+
+    This object is never saved to the database, as all the state is kept within
+    Discord.
+    Party objects can be reconstructed from party messages and can be used to
+    create party messages.
+    '''
+
+    def __init__(self, channel, leader, slots_left, members=set()):
+        self.channel = channel
+        self.leader = leader
+        self.slots_left = slots_left
+        self.members = members
+
+    async def from_party_message(message):
+        embed = message.embeds[0]
+        channel = message.channel
+        guild = message.guild
+
+        # fucking kill me please this is horrible coding
+        members = set()
+        for f in embed.fields:
+            if f.name == Strings.PARTY_LEADER:
+                leader = await guild.fetch_member(user_snowflake_to_id(f.value))
+            if f.name == Strings.PARTY_MEMBERS:
+                if f.value == "None":
+                    continue
+                members = f.value.split(" ")
+                members = [await guild.fetch_member(user_snowflake_to_id(id))
+                               for id in members]
+                members = set(members)
+            if f.name == Strings.SLOTS_LEFT:
+                slots_left = int(f.value)
+
+        return Party(channel, leader, slots_left, members)
+
+
+    def to_embed(self):
+        embed = discord.Embed.from_dict({
+            "color": 0x00FF00,
+            "description": f"{self.leader.mention} has just launched a party!\n" +
+                        f"React with {BOT_JOIN_EMOJI} to join the party."
+        })
+        embed.add_field(name=Strings.PARTY_LEADER,
+                        value=self.leader.mention, inline=True)
+        embed.add_field(name=Strings.SLOTS_LEFT,
+                        value=self.slots_left, inline=True)
+        if len(self.members) > 0:
+            members_value = " ".join([m.mention for m in self.members])
+        else:
+            members_value = "None"
+
+        embed.add_field(name=Strings.PARTY_MEMBERS,
+                        value=members_value, inline=True)
+
+        return embed
+
+    async def add_member(self, user, message):
+        self.members.add(user)
+        self.slots_left -= 1
+        await message.edit(embed=self.to_embed())
+
+    async def remove_member(self, user, message):
+        self.members.remove(user)
+        self.slots_left += 1
+        await message.edit(embed=self.to_embed())
+
+
+def user_snowflake_to_id(snowflake):
+    if snowflake[2] == "!":
+        return int(snowflake[3:-1])
+    else:
+        return int(snowflake[2:-1])
+
+
+class Emojis():
+    WHITE_CHECK_MARK = b'\xe2\x9c\x85'.decode()
+
+# handle emoji reactions being added deleted/
+# Format:
+#   Emoji : (add_handler, remove_handler)
+# All handlers are expected to take exactly one argument: the ReactionPayload
+emoji_handlers = {
+    Emojis.WHITE_CHECK_MARK: (add_member, remove_member),
+}
 
 if __name__ == "__main__":
     bot.run(BOT_TOKEN)
