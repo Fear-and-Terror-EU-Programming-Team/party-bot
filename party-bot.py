@@ -97,7 +97,7 @@ async def activatechannel(ctx, game_name : str, subscriber_role : discord.Role,
         await ctx.send(f"Channel configuration updated.")
 
 
-    channel_info = ChannelInformation(ctx.channel, subscriber_role,
+    channel_info = ChannelInformation(game_name, ctx.channel, subscriber_role,
                                       max_slots, channel_above)
     db[ctx.channel.id] = channel_info
     save_database(db)
@@ -451,6 +451,16 @@ class Emojis():
 emoji_handlers = {
     Emojis.WHITE_CHECK_MARK: (add_member, remove_member),
 }
+
+
+def send_error_unknown(ctx):
+    return send_error(ctx, "Unknown error. Tell someone from the programming" \
+                      + " team to check the logs.")
+
+
+def send_error(ctx, text):
+    return ctx.send("[ERROR] " + text)
+
 
 if __name__ == "__main__":
     bot.run(BOT_TOKEN)
