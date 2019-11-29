@@ -10,6 +10,7 @@ import channelinformation
 from party import Party
 from discord.ext import commands
 from emojis import Emojis
+from synchronization import synchronized
 
 bot = commands.Bot(command_prefix=config.BOT_CMD_PREFIX)
 
@@ -23,7 +24,6 @@ async def on_ready():
     print(bot.user.id)
     print('------')
 
-
 @bot.event
 async def on_raw_reaction_add(payload):
     await handle_react(payload, True)
@@ -34,6 +34,7 @@ async def on_raw_reaction_remove(payload):
     await handle_react(payload, False)
 
 
+@synchronized # users will break this if it's not done in sequential order
 async def handle_react(payload, was_added):
     rp = await unwrap_payload(payload)
     if rp.member == rp.guild.me: # ignore bot reactions
@@ -108,6 +109,7 @@ async def unwrap_payload(payload):
 ###############################################################################
 
 @bot.command()
+@synchronized
 async def startparty(ctx):
     check_channel(ctx.channel)
     if await channelinformation.get_active_party_message(ctx.channel) is not None:
@@ -137,6 +139,7 @@ async def startparty_error(ctx, error):
 
 
 @bot.command()
+@synchronized
 async def closeparty(ctx):
     check_channel(ctx.channel)
     party_message = await channelinformation.get_active_party_message(ctx.channel)
@@ -212,6 +215,12 @@ async def deactivatechannel_error(ctx, error):
     error_handlers = get_default_error_handlers(ctx, "deactivate", "")
     await handle_error(ctx, error, error_handlers)
 
+#@bot.command()
+#@commands.has_role(config.BOT_ADMIN_ROLE)
+#async def nukeparties(ctx):
+#    for channel in ctx.guild.channels:
+#        if " Party #" in channel.name:
+#            await channel.delete()
 
 ###############################################################################
 ## Command error handling

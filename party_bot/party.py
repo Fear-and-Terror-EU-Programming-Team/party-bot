@@ -20,6 +20,7 @@ class Party():
         self.slots_left = slots_left
         self.members = members
 
+
     async def from_party_message(message):
         embed = message.embeds[0]
         channel = message.channel
@@ -149,13 +150,18 @@ async def handle_full_party(party, party_message):
     database.save(db)
 
     channel_time_protection_set.add(vc.id)
-    await channel_time_protection(channel, vc)
+    asyncio.ensure_future(channel_time_protection(channel, vc))
 
 
 async def force_start_party(rp):
     party = await Party.from_party_message(rp.message)
-    if rp.member != party.leader: # only leader can start the party
-        await rp.message.remove_reaction(Emojis.WHITE_CHECK_MARK, rp.member)
+    # only leader can start the party
+    # and don't start empty parties
+    if rp.member != party.leader \
+        or len(party.members) == 0:
+        await rp.message.remove_reaction(Emojis.FAST_FORWARD, rp.member)
+        return
+
 
     await handle_full_party(party, rp.message)
 
