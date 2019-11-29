@@ -129,7 +129,3 @@ dmypy.json
 .pyre/
 
 ###############################################################################
-# Project specific ignores
-config.py
-database-old.json
-database.json

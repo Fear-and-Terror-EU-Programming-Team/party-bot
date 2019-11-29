@@ -1,5 +1,0 @@
-BOT_TOKEN       = "PUT BOT TOKEN HERE"
-BOT_CMD_PREFIX  = "$"
-BOT_ADMIN_ROLE  = "GangGang"
-BOT_JOIN_EMOJI  = "\u2705"
-
