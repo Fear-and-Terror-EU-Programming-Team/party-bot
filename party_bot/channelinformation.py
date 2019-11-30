@@ -1,4 +1,6 @@
 import database
+import discord
+import sys
 
 
 class ChannelInformation():
@@ -10,23 +12,11 @@ class ChannelInformation():
         self.game_name = game_name
         self.__channel_id = channel.id
         self.__subscriber_role_id = subscriber_role.id
-        self.__current_party_message_id = None
         self.max_slots = max_slots
         self.__channel_above_id = channel_above.id
         self.active_voice_channels = set()
         self.voice_channel_counter = 0
-
-    async def get_current_party_message(self, guild):
-        if self.__current_party_message_id == None:
-            return None
-        return await guild.get_channel(self.__channel_id) \
-            .fetch_message(self.__current_party_message_id)
-
-    def unset_current_party_message(self):
-        self.__current_party_message_id = None
-
-    def set_current_party_message(self, message):
-        self.__current_party_message_id = message.id
+        self.__active_party_leaders = {}
 
     def get_subscriber_role(self, guild):
         return guild.get_role(self.__subscriber_role_id)
@@ -34,7 +24,26 @@ class ChannelInformation():
     def get_channel_above(self, guild):
         return guild.get_channel(self.__channel_above_id)
 
+    async def get_party_message_of_leader(self, member):
+        channel = member.guild.get_channel(self.__channel_id)
+        message_id = self.__active_party_leaders.get(str(member.id))
+        if message_id == None:
+            return None
 
-async def get_active_party_message(channel):
-    db = database.load()
-    return await db[channel.id].get_current_party_message(channel.guild)
+        try:
+            message = await channel.fetch_message(message_id)
+        except discord.NotFound as e:
+            print(f"Party message deletion was not tracked!\n"
+                  f"- Member: {member}\n"
+                  f"- Channel: {channel}\n"
+                  f"- Message: {message_id}\n", file=sys.stderr)
+            self.clear_party_message_of_leader(member)
+            message = None
+
+        return message
+
+    def set_party_message_of_leader(self, member, message):
+        self.__active_party_leaders[str(member.id)] = str(message.id)
+
+    def clear_party_message_of_leader(self, member):
+        del self.__active_party_leaders[str(member.id)]

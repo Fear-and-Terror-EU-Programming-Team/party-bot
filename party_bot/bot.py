@@ -114,65 +114,6 @@ async def unwrap_payload(payload):
 ## Commands
 ###############################################################################
 
-@bot.command()
-@synchronized
-async def startparty(ctx):
-    # check_channel(ctx.channel)
-    # if await channelinformation.get_active_party_message(ctx.channel) is not None:
-    # raise PartyAlreadyStartedError()
-
-    db = database.load()
-    subscriber_role = db[ctx.channel.id].get_subscriber_role(ctx.guild)
-    max_slots = db[ctx.channel.id].max_slots
-    party = Party(ctx.channel, ctx.author, max_slots - 1)
-    message = await ctx.send(embed=party.to_embed())
-    db[ctx.channel.id].set_current_party_message(message)
-    database.save(db)
-    await message.add_reaction(Emojis.WHITE_CHECK_MARK)
-    await message.add_reaction(Emojis.FAST_FORWARD)
-    await message.add_reaction(Emojis.NO_ENTRY_SIGN)
-
-
-@startparty.error
-async def startparty_error(ctx, error):
-    error_handlers = {
-        PartyAlreadyStartedError: lambda:
-        ctx.send("A party has already been launched in this channel. "
-                 "Join that one or wait before creating another one.")
-    }
-    error_handlers.update(get_default_error_handlers(ctx, "startparty", ""))
-    await handle_error(ctx, error, error_handlers)
-
-
-@bot.command()
-@synchronized
-async def closeparty(ctx):
-    check_channel(ctx.channel)
-    party_message = await channelinformation.get_active_party_message(ctx.channel)
-    if party_message is None:
-        raise NoActivePartyError()
-    admin_role = ctx.guild.get_role(config.BOT_ADMIN_ROLE)
-    if party_message.author != ctx.author \
-            and admin_role not in ctx.author.roles:
-        raise commands.MissingRole()
-
-    await ctx.send(f"> {ctx.author.mention} has just disbanded the party!\n"
-                   f"> Type {config.BOT_CMD_PREFIX}startparty to launch a new party.")
-    await party_message.delete()
-    db = database.load()
-    db[ctx.channel.id].unset_current_party_message()
-    database.save(db)
-
-
-@closeparty.error
-async def closeparty_error(ctx, error):
-    error_handlers = {
-        NoActivePartyError: lambda:
-        ctx.send("There is no active party in this channel.")
-    }
-    error_handlers.update(get_default_error_handlers(ctx, "closeparty", ""))
-    await handle_error(ctx, error, error_handlers)
-
 
 @bot.command()
 @commands.has_role(config.BOT_ADMIN_ROLE)

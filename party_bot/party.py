@@ -49,7 +49,8 @@ class Party():
             "description": f"{self.leader.mention} has just launched a party!\n"
                            f"React with {Emojis.WHITE_CHECK_MARK} to join the party. "
                            f"The party leader can start the party early with "
-                           f"{Emojis.FAST_FORWARD}. "
+                           f"{Emojis.FAST_FORWARD} or close it with "
+                           f"{Emojis.NO_ENTRY_SIGN}."
         })
         embed.add_field(name=Strings.PARTY_LEADER,
                         value=self.leader.mention, inline=True)
@@ -133,6 +134,7 @@ async def handle_full_party(party, party_message):
     mentions = f"{party.leader.mention} " + \
                " ".join([m.mention for m in party.members])
     await party_message.delete()
+    channel_info.clear_party_message_of_leader(rp.member)
 
     # send additional message, notifying members
     message = await channel.send(f"{mentions}. Matchmaking done. "
@@ -142,12 +144,10 @@ async def handle_full_party(party, party_message):
                                      f"seconds to join. "
                                      f"After that, the channel gets deleted as soon as it "
                                      f"empties out.")
-    channel_info.unset_current_party_message()
     database.save(db)
     channel_time_protection_set.add(vc.id)
-    message_time_protection_set.add(message.id)
-    asyncio.ensure_future(channel_time_protection(channel, vc))
-    asyncio.ensure_future(message_time_protection(message))
+    asyncio.ensure_future(channel_time_protection(vc))
+    asyncio.ensure_future(message_delayed_delete(message))
 
 
 async def force_start_party(rp):
@@ -174,23 +174,31 @@ async def close_party(rp):
                                        f"> Type {config.BOT_CMD_PREFIX}startparty to launch a new party.")
     await rp.message.delete()
     db = database.load()
-    db[party.channel.id].unset_current_party_message()
+    db[channel.id].clear_party_message_of_leader(rp.member)
     database.save(db)
-    message_time_protection_set.add(message.id)
-    asyncio.ensure_future(message_time_protection(message))
+    asyncio.ensure_future(message_delayed_delete(message))
 
 
 async def start_party(rp):
-    channel = rp.message.channel
+    await rp.message.remove_reaction(Emojis.TADA, rp.member)
+    channel = rp.channel
     db = database.load()
-    max_slots = db[channel.id].max_slots
+    channel_info = db[channel.id]
+
+    if await channel_info.get_party_message_of_leader(rp.member) is not None:
+        await rp.member.send(f"You already have an active party! "
+                             f"Close it with {Emojis.NO_ENTRY_SIGN} "
+                             f"to start a new one.")
+        return
+
+    max_slots = channel_info.max_slots
     party = Party(channel, rp.member, max_slots - 1)
     message = await channel.send(embed=party.to_embed())
-    db[party.channel.id].set_current_party_message(message)
-    database.save(db)
     await message.add_reaction(Emojis.WHITE_CHECK_MARK)
     await message.add_reaction(Emojis.FAST_FORWARD)
     await message.add_reaction(Emojis.NO_ENTRY_SIGN)
+    channel_info.set_party_message_of_leader(rp.member, message)
+    database.save(db)
 
 
 async def handle_party_emptied(matchmaking_channel_id, voice_channel):
@@ -206,21 +214,21 @@ async def handle_party_emptied(matchmaking_channel_id, voice_channel):
 
 # a channel only gets auto-deleted when people leave
 # if the channel is above a certain age
+# This doesn't need to be persistent, on bot restart,
+# all channels are unprotected
 channel_time_protection_set = set()
-message_time_protection_set = set()
 
 
-async def channel_time_protection(matchmaking_channel, voice_channel):
+async def channel_time_protection(voice_channel):
     await asyncio.sleep(config.CHANNEL_TIME_PROTECTION_LENGTH_SECONDS)
     channel_time_protection_set.remove(voice_channel.id)
     if len(voice_channel.members) == 0:
         await voice_channel.delete()
 
 
-async def message_time_protection(message):
-    await asyncio.sleep(config.CHANNEL_TIME_PROTECTION_LENGTH_SECONDS)
+async def message_delayed_delete(message):
+    await asyncio.sleep(config.MESSAGE_DELETE_DELAY_SECONDS)
     await message.delete()
-    message_time_protection_set.remove(message.id)
 
 
 def _user_snowflake_to_id(snowflake):
