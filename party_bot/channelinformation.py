@@ -1,7 +1,9 @@
 import database
 
+
 class ChannelInformation():
     '''Contains the relevant information about an active channel.'''
+
     def __init__(self, game_name, channel, subscriber_role,
                  max_slots, channel_above):
         # Store all objects as their IDs to allow easier serialization
@@ -17,7 +19,7 @@ class ChannelInformation():
     async def get_current_party_message(self, guild):
         if self.__current_party_message_id == None:
             return None
-        return await guild.get_channel(self.__channel_id)\
+        return await guild.get_channel(self.__channel_id) \
             .fetch_message(self.__current_party_message_id)
 
     def unset_current_party_message(self):

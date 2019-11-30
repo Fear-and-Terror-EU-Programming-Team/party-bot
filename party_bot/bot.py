@@ -14,6 +14,7 @@ from synchronization import synchronized
 
 bot = commands.Bot(command_prefix=config.BOT_CMD_PREFIX)
 
+
 ###############################################################################
 ## Events
 ###############################################################################
@@ -23,6 +24,7 @@ async def on_ready():
     print(bot.user.name)
     print(bot.user.id)
     print('------')
+
 
 @bot.event
 async def on_raw_reaction_add(payload):
@@ -34,12 +36,12 @@ async def on_raw_reaction_remove(payload):
     await handle_react(payload, False)
 
 
-@synchronized # users will break this if it's not done in sequential order
+@synchronized  # users will break this if it's not done in sequential order
 async def handle_react(payload, was_added):
     rp = await unwrap_payload(payload)
-    if rp.member == rp.guild.me: # ignore bot reactions
+    if rp.member == rp.guild.me:  # ignore bot reactions
         return
-    if rp.message.author != rp.guild.me: # ignore reactions on non-bot messages
+    if rp.message.author != rp.guild.me:  # ignore reactions on non-bot messages
         return
     # ignore reactions on messages other than the party message
     # (identified by having exactly one embed)
@@ -48,9 +50,9 @@ async def handle_react(payload, was_added):
 
     if rp.emoji.name in emoji_handlers.keys():
         add_handler, remove_handler = emoji_handlers[rp.emoji.name]
-        if was_added and add_handler != None:
+        if was_added and add_handler is not None:
             await add_handler(rp)
-        elif remove_handler != None:
+        elif remove_handler is not None:
             await remove_handler(rp)
 
 
@@ -63,6 +65,10 @@ emoji_handlers = {
         (party.add_member_emoji_handler, party.remove_member_emoji_handler),
     Emojis.FAST_FORWARD:
         (party.force_start_party, None),
+    Emojis.NO_ENTRY_SIGN:
+        (party.close_party, None),
+    Emojis.TADA:
+        (party.start_party, None)
 }
 
 
@@ -70,9 +76,9 @@ emoji_handlers = {
 async def on_voice_state_update(member, before, after):
     channel = before.channel
     if channel is None \
-        or after.channel == channel: # only tracks disconnects
+            or after.channel == channel:  # only tracks disconnects
         return
-    if len(channel.members) > 0: # only react on empty channels
+    if len(channel.members) > 0:  # only react on empty channels
         return
 
     # only track channels created by the party bot
@@ -111,20 +117,20 @@ async def unwrap_payload(payload):
 @bot.command()
 @synchronized
 async def startparty(ctx):
-    check_channel(ctx.channel)
-    if await channelinformation.get_active_party_message(ctx.channel) is not None:
-        raise PartyAlreadyStartedError()
+    # check_channel(ctx.channel)
+    # if await channelinformation.get_active_party_message(ctx.channel) is not None:
+    # raise PartyAlreadyStartedError()
 
     db = database.load()
     subscriber_role = db[ctx.channel.id].get_subscriber_role(ctx.guild)
     max_slots = db[ctx.channel.id].max_slots
     party = Party(ctx.channel, ctx.author, max_slots - 1)
-    message = await ctx.send(f"{subscriber_role.mention} {ctx.author.mention}",
-                             embed=party.to_embed())
+    message = await ctx.send(embed=party.to_embed())
     db[ctx.channel.id].set_current_party_message(message)
     database.save(db)
     await message.add_reaction(Emojis.WHITE_CHECK_MARK)
     await message.add_reaction(Emojis.FAST_FORWARD)
+    await message.add_reaction(Emojis.NO_ENTRY_SIGN)
 
 
 @startparty.error
@@ -146,7 +152,7 @@ async def closeparty(ctx):
     if party_message is None:
         raise NoActivePartyError()
     admin_role = ctx.guild.get_role(config.BOT_ADMIN_ROLE)
-    if party_message.author != ctx.author\
+    if party_message.author != ctx.author \
             and admin_role not in ctx.author.roles:
         raise commands.MissingRole()
 
@@ -170,8 +176,8 @@ async def closeparty_error(ctx, error):
 
 @bot.command()
 @commands.has_role(config.BOT_ADMIN_ROLE)
-async def activatechannel(ctx, game_name : str, subscriber_role : discord.Role,
-                          max_slots : int, channel_above_id : int):
+async def activatechannel(ctx, game_name: str, subscriber_role: discord.Role,
+                          max_slots: int, channel_above_id: int):
     channel_above = ctx.guild.get_channel(channel_above_id)
     if channel_above is None:
         raise commands.errors.BadArgument()
@@ -183,13 +189,20 @@ async def activatechannel(ctx, game_name : str, subscriber_role : discord.Role,
     else:
         await ctx.send(f"Channel configuration updated.")
 
-
     channel_info = channelinformation.ChannelInformation(game_name, ctx.channel,
                                                          subscriber_role,
                                                          max_slots,
                                                          channel_above)
     db[ctx.channel.id] = channel_info
     database.save(db)
+    embed = discord.Embed.from_dict({
+        "title": "Game: %s" % game_name,
+        "color": 0x0000FF,
+        "description": "React with %s to start a party for %s." \
+                       % (Emojis.TADA, game_name)
+    })
+    message = await ctx.send("", embed=embed)
+    await message.add_reaction(Emojis.TADA)
 
 
 @activatechannel.error
@@ -215,9 +228,10 @@ async def deactivatechannel_error(ctx, error):
     error_handlers = get_default_error_handlers(ctx, "deactivate", "")
     await handle_error(ctx, error, error_handlers)
 
-#@bot.command()
-#@commands.has_role(config.BOT_ADMIN_ROLE)
-#async def nukeparties(ctx):
+
+# @bot.command()
+# @commands.has_role(config.BOT_ADMIN_ROLE)
+# async def nukeparties(ctx):
 #    for channel in ctx.guild.channels:
 #        if " Party #" in channel.name:
 #            await channel.delete()
@@ -227,7 +241,11 @@ async def deactivatechannel_error(ctx, error):
 ###############################################################################
 
 class InactiveChannelError(commands.CommandError): pass
+
+
 class PartyAlreadyStartedError(commands.CommandError): pass
+
+
 class NoActivePartyError(commands.CommandError): pass
 
 
@@ -257,6 +275,7 @@ def get_default_error_handlers(ctx, command_name, command_argument_syntax):
                  f"Admins can change that via "
                  f"{config.BOT_CMD_PREFIX}activatechannel.")
     }
+
 
 def send_usage_help(ctx, function_name, argument_structure):
     return ctx.send(f"Usage: `{config.BOT_CMD_PREFIX}{function_name} "

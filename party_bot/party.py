@@ -5,6 +5,7 @@ import discord
 from strings import Strings
 from emojis import Emojis
 
+
 class Party():
     '''Python object representing an active party.
 
@@ -19,7 +20,6 @@ class Party():
         self.leader = leader
         self.slots_left = slots_left
         self.members = members
-
 
     async def from_party_message(message):
         embed = message.embeds[0]
@@ -36,21 +36,20 @@ class Party():
                     continue
                 members = f.value.split(" ")
                 members = [await guild.fetch_member(_user_snowflake_to_id(id))
-                               for id in members]
+                           for id in members]
                 members = set(members)
             if f.name == Strings.SLOTS_LEFT:
                 slots_left = int(f.value)
 
         return Party(channel, leader, slots_left, members)
 
-
     def to_embed(self):
         embed = discord.Embed.from_dict({
             "color": 0x00FF00,
             "description": f"{self.leader.mention} has just launched a party!\n"
-                        f"React with {Emojis.WHITE_CHECK_MARK} to join the party. "
-                        f"The party leader can start the party early with "
-                        f"{Emojis.FAST_FORWARD}. "
+                           f"React with {Emojis.WHITE_CHECK_MARK} to join the party. "
+                           f"The party leader can start the party early with "
+                           f"{Emojis.FAST_FORWARD}. "
         })
         embed.add_field(name=Strings.PARTY_LEADER,
                         value=self.leader.mention, inline=True)
@@ -80,7 +79,7 @@ class Party():
 async def add_member_emoji_handler(rp):
     party = await Party.from_party_message(rp.message)
     if party.slots_left < 1 \
-            or rp.member == party.leader: # leader can't join as member
+            or rp.member == party.leader:  # leader can't join as member
         await rp.message.remove_reaction(Emojis.WHITE_CHECK_MARK, rp.member)
         return
 
@@ -94,7 +93,7 @@ async def remove_member_emoji_handler(rp):
     if rp.member not in party.members:
         # This shouldn't happen. If it does, ignore it
         return
-    if rp.member == party.leader: # leader can't leave
+    if rp.member == party.leader:  # leader can't leave
         return
 
     await party.remove_member(rp.member, rp.message)
@@ -109,15 +108,15 @@ async def handle_full_party(party, party_message):
     category = guild.get_channel(channel_above.category_id)
 
     overwrites = {
-        guild.default_role  : discord.PermissionOverwrite(read_messages=True,
-                                                          connect=False),
-        guild.me            : discord.PermissionOverwrite(read_messages=True),
-        party.leader        : discord.PermissionOverwrite(read_messages=True,
-                                                          connect=True)
+        guild.default_role: discord.PermissionOverwrite(read_messages=True,
+                                                        connect=False),
+        guild.me: discord.PermissionOverwrite(read_messages=True),
+        party.leader: discord.PermissionOverwrite(read_messages=True,
+                                                  connect=True)
     }
     overwrites.update({
-        member              : discord.PermissionOverwrite(read_messages=True,
-                                                          connect=True)
+        member: discord.PermissionOverwrite(read_messages=True,
+                                            connect=True)
         for member in party.members
     })
 
@@ -130,27 +129,25 @@ async def handle_full_party(party, party_message):
     await vc.edit(position=channel_above.position + 1)
     channel_info.active_voice_channels.add(vc.id)
 
-    # edit original party message
-    await party_message.edit(embed=None, content = \
-        f"Matchmaking is done. If you're a member, "
-        f"you can now connect to {vc.mention}.")
-    await party_message.clear_reactions()
+    # delete original party message
     mentions = f"{party.leader.mention} " + \
                " ".join([m.mention for m in party.members])
+    await party_message.delete()
 
     # send additional message, notifying members
-    await channel.send(f"{mentions}. Matchmaking done. "
-                       f"Connect to {vc.mention}. "
-                       f"You have "
-                       f"{config.CHANNEL_TIME_PROTECTION_LENGTH_SECONDS} "
-                       f"seconds to join. "
-                       f"After that, the channel gets deleted as soon as it "
-                       f"empties out.")
+    message = await channel.send(f"{mentions}. Matchmaking done. "
+                                     f"Connect to {vc.mention}. "
+                                     f"You have "
+                                     f"{config.CHANNEL_TIME_PROTECTION_LENGTH_SECONDS} "
+                                     f"seconds to join. "
+                                     f"After that, the channel gets deleted as soon as it "
+                                     f"empties out.")
     channel_info.unset_current_party_message()
     database.save(db)
-
     channel_time_protection_set.add(vc.id)
+    message_time_protection_set.add(message.id)
     asyncio.ensure_future(channel_time_protection(channel, vc))
+    asyncio.ensure_future(message_time_protection(message))
 
 
 async def force_start_party(rp):
@@ -158,12 +155,42 @@ async def force_start_party(rp):
     # only leader can start the party
     # and don't start empty parties
     if rp.member != party.leader \
-        or len(party.members) == 0:
+            or len(party.members) == 0:
         await rp.message.remove_reaction(Emojis.FAST_FORWARD, rp.member)
         return
 
-
     await handle_full_party(party, rp.message)
+
+
+async def close_party(rp):
+    party = await Party.from_party_message(rp.message)
+    channel = party.channel
+    admin_role = channel.guild.get_role(config.BOT_ADMIN_ROLE)
+    if party.leader != rp.member \
+            and admin_role not in rp.member.roles:
+        await rp.message.remove_reaction(Emojis.NO_ENTRY_SIGN, rp.member)
+        return
+    message = await channel.send(f"> {rp.member.mention} has just disbanded the party!\n"
+                                       f"> Type {config.BOT_CMD_PREFIX}startparty to launch a new party.")
+    await rp.message.delete()
+    db = database.load()
+    db[party.channel.id].unset_current_party_message()
+    database.save(db)
+    message_time_protection_set.add(message.id)
+    asyncio.ensure_future(message_time_protection(message))
+
+
+async def start_party(rp):
+    channel = rp.message.channel
+    db = database.load()
+    max_slots = db[channel.id].max_slots
+    party = Party(channel, rp.member, max_slots - 1)
+    message = await channel.send(embed=party.to_embed())
+    db[party.channel.id].set_current_party_message(message)
+    database.save(db)
+    await message.add_reaction(Emojis.WHITE_CHECK_MARK)
+    await message.add_reaction(Emojis.FAST_FORWARD)
+    await message.add_reaction(Emojis.NO_ENTRY_SIGN)
 
 
 async def handle_party_emptied(matchmaking_channel_id, voice_channel):
@@ -180,6 +207,7 @@ async def handle_party_emptied(matchmaking_channel_id, voice_channel):
 # a channel only gets auto-deleted when people leave
 # if the channel is above a certain age
 channel_time_protection_set = set()
+message_time_protection_set = set()
 
 
 async def channel_time_protection(matchmaking_channel, voice_channel):
@@ -189,10 +217,14 @@ async def channel_time_protection(matchmaking_channel, voice_channel):
         await voice_channel.delete()
 
 
+async def message_time_protection(message):
+    await asyncio.sleep(config.CHANNEL_TIME_PROTECTION_LENGTH_SECONDS)
+    await message.delete()
+    message_time_protection_set.remove(message.id)
+
+
 def _user_snowflake_to_id(snowflake):
     if snowflake[2] == "!":
         return int(snowflake[3:-1])
     else:
         return int(snowflake[2:-1])
-
-
