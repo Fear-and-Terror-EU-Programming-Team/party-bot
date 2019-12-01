@@ -3,18 +3,15 @@
 Fear and Terror's bot for party matchmaking on Discord
 '''
 import asyncio
-
-import party
-import config
-import discord
-import database
 import channelinformation
-from party import Party
+import config
+import database
+import discord
+import party
+from party import Party, message_delayed_delete
 from discord.ext import commands
 from emojis import Emojis
 from synchronization import synchronized
-
-from party_bot.party import message_delayed_delete
 
 bot = commands.Bot(command_prefix=config.BOT_CMD_PREFIX)
 
@@ -121,7 +118,7 @@ async def unwrap_payload(payload):
 
 @bot.command()
 @commands.has_role(config.BOT_ADMIN_ROLE)
-async def activatechannel(ctx, game_name: str, subscriber_role: discord.Role,
+async def activatechannel(ctx, game_name: str,
                           max_slots: int, channel_above_id: int):
     channel_above = ctx.guild.get_channel(channel_above_id)
     if channel_above is None:
@@ -137,7 +134,6 @@ async def activatechannel(ctx, game_name: str, subscriber_role: discord.Role,
         await ctx.send(f"Channel configuration updated.")
 
     channel_info = channelinformation.ChannelInformation(game_name, ctx.channel,
-                                                         subscriber_role,
                                                          max_slots,
                                                          channel_above)
     db[ctx.channel.id] = channel_info
@@ -155,7 +151,7 @@ async def activatechannel(ctx, game_name: str, subscriber_role: discord.Role,
 @activatechannel.error
 async def activatechannel_error(ctx, error):
     error_handlers = get_default_error_handlers(ctx, "activatechannel",
-                                                "GAME_NAME @SUBSCRIBER_ROLE "
+                                                "GAME_NAME "
                                                 "MAX_SLOTS CHANNEL_ABOVE_ID")
     await handle_error(ctx, error, error_handlers)
 
