@@ -79,11 +79,31 @@ class Party():
 
 async def add_member_emoji_handler(rp):
     party = await Party.from_party_message(rp.message)
+    delete_message = ""
+    message = rp.message
+    channel = rp.channel
+    db = database.load()
+    channel_info = db[channel.id]
+
     if party.slots_left < 1 \
             or rp.member == party.leader:  # leader can't join as member
         await rp.message.remove_reaction(Emojis.WHITE_CHECK_MARK, rp.member)
         return
-
+    if await channel_info.get_party_message_of_leader(rp.member) is not None:
+        delete_message = await channel.send(f"{rp.member.mention}, you already have an active party! "
+                                            f"Close it before attempting to join another.")
+        asyncio.ensure_future(message_delayed_delete(delete_message))
+        await rp.message.remove_reaction(Emojis.WHITE_CHECK_MARK, rp.member)
+        return
+    if await channel_info.get_party_message_of_members(rp.member) is not None:
+        delete_message = await channel.send(f"{rp.member.mention}, you are already in another party! "
+                                            f"Leave that party before trying to join another.")
+        asyncio.ensure_future(message_delayed_delete(delete_message))
+        await rp.message.remove_reaction(Emojis.WHITE_CHECK_MARK, rp.member)
+        return
+    channel_info.set_party_message_of_members(rp.member, message)
+    database.save(db)
+    asyncio.ensure_future(message_delayed_delete(delete_message))
     await party.add_member(rp.member, rp.message)
     if party.slots_left < 1:
         await handle_full_party(party, rp.message)
@@ -91,6 +111,9 @@ async def add_member_emoji_handler(rp):
 
 async def remove_member_emoji_handler(rp):
     party = await Party.from_party_message(rp.message)
+    channel = rp.channel
+    db = database.load()
+    channel_info = db[channel.id]
     if rp.member not in party.members:
         # This shouldn't happen. If it does, ignore it
         return
@@ -98,6 +121,8 @@ async def remove_member_emoji_handler(rp):
         return
 
     await party.remove_member(rp.member, rp.message)
+    channel_info.clear_party_message_of_members(rp.member)
+    database.save(db)
 
 
 async def handle_full_party(party, party_message):
@@ -133,18 +158,21 @@ async def handle_full_party(party, party_message):
     # delete original party message
     mentions = f"{party.leader.mention} " + \
                " ".join([m.mention for m in party.members])
+    trashcode = set()
+    for m in party.members:
+        db[channel.id].clear_party_message_of_members(m)
+    channel_info.clear_party_message_of_leader(party.leader)
+    database.save(db)
     await party_message.delete()
-    channel_info.clear_party_message_of_leader(rp.member)
 
     # send additional message, notifying members
     message = await channel.send(f"{mentions}. Matchmaking done. "
-                                     f"Connect to {vc.mention}. "
-                                     f"You have "
-                                     f"{config.CHANNEL_TIME_PROTECTION_LENGTH_SECONDS} "
-                                     f"seconds to join. "
-                                     f"After that, the channel gets deleted as soon as it "
-                                     f"empties out.")
-    database.save(db)
+                                 f"Connect to {vc.mention}. "
+                                 f"You have "
+                                 f"{config.CHANNEL_TIME_PROTECTION_LENGTH_SECONDS} "
+                                 f"seconds to join. "
+                                 f"After that, the channel gets deleted as soon as it "
+                                 f"empties out.")
     channel_time_protection_set.add(vc.id)
     asyncio.ensure_future(channel_time_protection(vc))
     asyncio.ensure_future(message_delayed_delete(message))
@@ -170,11 +198,15 @@ async def close_party(rp):
             and admin_role not in rp.member.roles:
         await rp.message.remove_reaction(Emojis.NO_ENTRY_SIGN, rp.member)
         return
-    message = await channel.send(f"> {rp.member.mention} has just disbanded the party!\n"
-                                       f"> Type {config.BOT_CMD_PREFIX}startparty to launch a new party.")
+    if rp.member != party.leader:
+        message = await channel.send(f"> {rp.member.mention} has just force closed {party.leader.mention}'s party!")
+    else:
+        message = await channel.send(f"> {rp.member.mention} has just disbanded their party!\n")
     await rp.message.delete()
     db = database.load()
-    db[channel.id].clear_party_message_of_leader(rp.member)
+    for m in party.members:
+        db[channel.id].clear_party_message_of_members(m)
+    db[channel.id].clear_party_message_of_leader(party.leader)
     database.save(db)
     asyncio.ensure_future(message_delayed_delete(message))
 
@@ -186,9 +218,15 @@ async def start_party(rp):
     channel_info = db[channel.id]
 
     if await channel_info.get_party_message_of_leader(rp.member) is not None:
-        await rp.member.send(f"You already have an active party! "
-                             f"Close it with {Emojis.NO_ENTRY_SIGN} "
-                             f"to start a new one.")
+        delete_message = await channel.send(f"{rp.member.mention}, you already have an active party! "
+                                            f"Close it with {Emojis.NO_ENTRY_SIGN} "
+                                            f"to start a new one.")
+        asyncio.ensure_future(message_delayed_delete(delete_message))
+        return
+    if await channel_info.get_party_message_of_members(rp.member) is not None:
+        delete_message = await channel.send(f"{rp.member.mention}, you are already in another party! "
+                                            f"Leave that party before trying to create your own.")
+        asyncio.ensure_future(message_delayed_delete(delete_message))
         return
 
     max_slots = channel_info.max_slots
