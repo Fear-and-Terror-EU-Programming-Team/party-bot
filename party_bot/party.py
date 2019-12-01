@@ -140,6 +140,15 @@ async def handle_full_party(party, party_message):
         for member in party.members
     })
 
+    # allow anyone with moving perms
+    for role in guild.roles:
+        if role.permissions.move_members:
+            overwrites.update({
+                role: discord.PermissionOverwrite(read_messages=True,
+                                                  connect=True)
+            })
+
+
     counter = channel_info.voice_channel_counter
     channel_info.voice_channel_counter += 1
     vc = await guild.create_voice_channel(f"{channel_info.game_name} "
@@ -155,6 +164,7 @@ async def handle_full_party(party, party_message):
     trashcode = set()
     for m in party.members:
         db[channel.id].clear_party_message_of_user(m)
+    db[channel.id].clear_party_message_of_user(party.leader)
     database.save(db)
     await party_message.delete()
 

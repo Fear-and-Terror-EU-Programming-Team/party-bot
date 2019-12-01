@@ -39,7 +39,15 @@ async def on_raw_reaction_remove(payload):
 
 @synchronized  # users will break this if it's not done in sequential order
 async def handle_react(payload, was_added):
+    # ignore reaction if message was already deleted (synchronization stuff)
+    try:
+        await bot.get_channel(payload.channel_id) \
+                .fetch_message(payload.message_id)
+    except discord.NotFound as e:
+        return
+
     rp = await unwrap_payload(payload)
+
     if rp.member == rp.guild.me:  # ignore bot reactions
         return
     if rp.message.author != rp.guild.me:  # ignore reactions on non-bot messages
