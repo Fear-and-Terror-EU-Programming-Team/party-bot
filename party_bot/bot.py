@@ -2,6 +2,8 @@
 '''
 Fear and Terror's bot for party matchmaking on Discord
 '''
+import asyncio
+
 import party
 import config
 import discord
@@ -11,6 +13,8 @@ from party import Party
 from discord.ext import commands
 from emojis import Emojis
 from synchronization import synchronized
+
+from party_bot.party import message_delayed_delete
 
 bot = commands.Bot(command_prefix=config.BOT_CMD_PREFIX)
 
@@ -125,9 +129,11 @@ async def activatechannel(ctx, game_name: str, subscriber_role: discord.Role,
 
     db = database.load()
     if ctx.channel.id not in db.keys():
-        await ctx.send(f"This channel has been activated for party matchmaking. "
-                       f"Use {config.BOT_CMD_PREFIX}startparty to create one!")
+        await ctx.message.delete()
+        await ctx.send(f"This channel has been activated for party matchmaking. ")
+
     else:
+        await ctx.message.delete()
         await ctx.send(f"Channel configuration updated.")
 
     channel_info = channelinformation.ChannelInformation(game_name, ctx.channel,
@@ -154,6 +160,9 @@ async def activatechannel_error(ctx, error):
     await handle_error(ctx, error, error_handlers)
 
 
+def is_me(m):
+    return m.author == bot.user
+
 @bot.command()
 @commands.has_role(config.BOT_ADMIN_ROLE)
 async def deactivatechannel(ctx):
@@ -161,7 +170,11 @@ async def deactivatechannel(ctx):
     db = database.load()
     del db[ctx.channel.id]
     database.save(db)
-    await ctx.send(f"Party matchmaking disabled for this channel.")
+    await ctx.message.delete()
+    await ctx.channel.purge(limit=100, check=is_me)
+    message = await ctx.send(f"Party matchmaking disabled for this channel.")
+    asyncio.ensure_future(message_delayed_delete(message))
+
 
 
 @deactivatechannel.error
