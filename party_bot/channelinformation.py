@@ -13,7 +13,7 @@ class ChannelInformation():
         self.max_slots = max_slots
         self.__channel_above_id = channel_above.id
         self.active_voice_channels = set()
-        self.voice_channel_counter = 0
+        self.voice_channel_counter = 1
         self.__active_party_members_and_leaders = {}
 
     def get_channel_above(self, guild):

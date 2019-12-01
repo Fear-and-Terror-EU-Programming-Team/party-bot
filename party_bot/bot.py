@@ -138,6 +138,7 @@ async def activatechannel(ctx, game_name: str,
                                                          channel_above)
     db[ctx.channel.id] = channel_info
     database.save(db)
+    await ctx.channel.purge(limit=100, check=is_me)
     embed = discord.Embed.from_dict({
         "title": "Game: %s" % game_name,
         "color": 0x0000FF,

@@ -79,7 +79,6 @@ class Party():
 
 async def add_member_emoji_handler(rp):
     party = await Party.from_party_message(rp.message)
-    delete_message = ""
     message = rp.message
     channel = rp.channel
     db = database.load()
@@ -99,7 +98,6 @@ async def add_member_emoji_handler(rp):
         return
     channel_info.set_party_message_of_user(rp.member, message)
     database.save(db)
-    asyncio.ensure_future(message_delayed_delete(delete_message))
     await party.add_member(rp.member, rp.message)
     if party.slots_left < 1:
         await handle_full_party(party, rp.message)
@@ -145,7 +143,7 @@ async def handle_full_party(party, party_message):
     counter = channel_info.voice_channel_counter
     channel_info.voice_channel_counter += 1
     vc = await guild.create_voice_channel(f"{channel_info.game_name} "
-                                          f"Party #{counter % 10000:04d}",
+                                          f"Party {counter}",
                                           category=category,
                                           overwrites=overwrites)
     await vc.edit(position=channel_above.position + 1)
