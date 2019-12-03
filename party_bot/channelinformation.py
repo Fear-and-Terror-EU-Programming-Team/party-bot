@@ -6,7 +6,8 @@ import sys
 class ChannelInformation():
     '''Contains the relevant information about an active channel.'''
 
-    def __init__(self, game_name, channel, max_slots, channel_above):
+    def __init__(self, game_name, channel, max_slots, channel_above,
+                 open_parties):
         # Store all objects as their IDs to allow easier serialization
         self.game_name = game_name
         self.__channel_id = channel.id
@@ -15,6 +16,7 @@ class ChannelInformation():
         self.active_voice_channels = set()
         self.voice_channel_counter = 1
         self.__active_party_members_and_leaders = {}
+        self.open_parties = open_parties
 
     def get_channel_above(self, guild):
         return guild.get_channel(self.__channel_above_id)

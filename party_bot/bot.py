@@ -11,6 +11,7 @@ import party
 from party import Party, message_delayed_delete
 from discord.ext import commands
 from emojis import Emojis
+from strings import Strings
 from synchronization import synchronized
 
 bot = commands.Bot(command_prefix=config.BOT_CMD_PREFIX)
@@ -119,15 +120,29 @@ async def unwrap_payload(payload):
     return rp
 
 
+def is_admin():
+    async def predicate(ctx):
+        return party.is_admin(ctx.author)
+    return commands.check(predicate)
+
+
 ###############################################################################
 ## Commands
 ###############################################################################
 
 
 @bot.command()
-@commands.has_role(config.BOT_ADMIN_ROLE)
+@is_admin()
 async def activatechannel(ctx, game_name: str,
-                          max_slots: int, channel_above_id: int):
+                          max_slots: int, channel_above_id: int,
+                          open_parties : str):
+    if open_parties == Strings.OPEN_PARTIES:
+        open_parties = True
+    elif open_parties == Strings.CLOSED_PARTIES:
+        open_parties = False
+    else:
+        raise commands.errors.BadArgument()
+
     channel_above = ctx.guild.get_channel(channel_above_id)
     if channel_above is None:
         raise commands.errors.BadArgument()
@@ -143,7 +158,8 @@ async def activatechannel(ctx, game_name: str,
 
     channel_info = channelinformation.ChannelInformation(game_name, ctx.channel,
                                                          max_slots,
-                                                         channel_above)
+                                                         channel_above,
+                                                         open_parties)
     db[ctx.channel.id] = channel_info
     database.save(db)
     await ctx.channel.purge(limit=100, check=is_me)
@@ -160,8 +176,10 @@ async def activatechannel(ctx, game_name: str,
 @activatechannel.error
 async def activatechannel_error(ctx, error):
     error_handlers = get_default_error_handlers(ctx, "activatechannel",
-                                                "GAME_NAME "
-                                                "MAX_SLOTS CHANNEL_ABOVE_ID")
+                                                f"GAME_NAME "
+                                                f"MAX_SLOTS CHANNEL_ABOVE_ID "
+                                                f"({Strings.OPEN_PARTIES}|"
+                                                f"{Strings.CLOSED_PARTIES})")
     await handle_error(ctx, error, error_handlers)
 
 
@@ -169,7 +187,7 @@ def is_me(m):
     return m.author == bot.user
 
 @bot.command()
-@commands.has_role(config.BOT_ADMIN_ROLE)
+@is_admin()
 async def deactivatechannel(ctx):
     check_channel(ctx.channel)
     db = database.load()
@@ -189,7 +207,7 @@ async def deactivatechannel_error(ctx, error):
 
 
 # @bot.command()
-# @commands.has_role(config.BOT_ADMIN_ROLE)
+# @is_admin()
 # async def nukeparties(ctx):
 #    for channel in ctx.guild.channels:
 #        if " Party #" in channel.name:
@@ -228,6 +246,8 @@ def get_default_error_handlers(ctx, command_name, command_argument_syntax):
         commands.errors.MissingRequiredArgument: usage_help,
         commands.errors.BadArgument: usage_help,
         commands.MissingRole: lambda:
+        ctx.send("Insufficient rank permissions."),
+        commands.errors.CheckFailure: lambda:
         ctx.send("Insufficient rank permissions."),
         InactiveChannelError: lambda:
         ctx.send(f"The bot is not configured to use this channel. "

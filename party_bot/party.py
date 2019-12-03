@@ -2,8 +2,8 @@ import asyncio
 import config
 import database
 import discord
-from strings import Strings
 from emojis import Emojis
+from strings import Strings
 
 
 class Party():
@@ -129,7 +129,7 @@ async def handle_full_party(party, party_message):
 
     overwrites = {
         guild.default_role: discord.PermissionOverwrite(read_messages=True,
-                                                        connect=False),
+                                                        connect=channel_info.open_parties),
         guild.me: discord.PermissionOverwrite(read_messages=True),
         party.leader: discord.PermissionOverwrite(read_messages=True,
                                                   connect=True)
@@ -196,9 +196,8 @@ async def force_start_party(rp):
 async def close_party(rp):
     party = await Party.from_party_message(rp.message)
     channel = party.channel
-    admin_role = channel.guild.get_role(config.BOT_ADMIN_ROLE)
     if party.leader != rp.member \
-            and admin_role not in rp.member.roles:
+            and not is_admin(rp.member):
         await rp.message.remove_reaction(Emojis.NO_ENTRY_SIGN, rp.member)
         return
     if rp.member != party.leader:
@@ -281,3 +280,9 @@ def _user_snowflake_to_id(snowflake):
         return int(snowflake[3:-1])
     else:
         return int(snowflake[2:-1])
+
+
+def is_admin(user):
+    return any([role.id in config.BOT_ADMIN_ROLES for role in user.roles])
+
+
