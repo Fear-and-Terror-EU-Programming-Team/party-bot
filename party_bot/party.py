@@ -152,7 +152,7 @@ async def handle_full_party(party, party_message):
     counter = channel_info.voice_channel_counter
     channel_info.voice_channel_counter += 1
     vc = await guild.create_voice_channel(f"{channel_info.game_name} "
-                                          f"Party - #{counter}",
+                                          f"- Party - #{counter}",
                                           category=category,
                                           overwrites=overwrites)
     await vc.edit(position=channel_above.position + 1)
