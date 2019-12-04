@@ -1,9 +1,11 @@
 import asyncio
 import config
-import database
 import discord
+from database import Database
 from emojis import Emojis
 from strings import Strings
+from timers import channel_time_protection, channel_time_protection_set, \
+                   message_delayed_delete
 
 
 class Party():
@@ -81,8 +83,8 @@ async def add_member_emoji_handler(rp):
     party = await Party.from_party_message(rp.message)
     message = rp.message
     channel = rp.channel
-    db = database.load()
-    channel_info = db[channel.id]
+    db = Database.load()
+    channel_info = db.party_channels()[str(channel.id)]
 
     if party.slots_left < 1 \
             or rp.member == party.leader:  # leader can't join as member
@@ -97,7 +99,7 @@ async def add_member_emoji_handler(rp):
         await rp.message.remove_reaction(Emojis.WHITE_CHECK_MARK, rp.member)
         return
     channel_info.set_party_message_of_user(rp.member, message)
-    database.save(db)
+    db.save()
     await party.add_member(rp.member, rp.message)
     if party.slots_left < 1:
         await handle_full_party(party, rp.message)
@@ -106,8 +108,8 @@ async def add_member_emoji_handler(rp):
 async def remove_member_emoji_handler(rp):
     party = await Party.from_party_message(rp.message)
     channel = rp.channel
-    db = database.load()
-    channel_info = db[channel.id]
+    db = Database.load()
+    channel_info = db.party_channels()[str(channel.id)]
     if rp.member not in party.members:
         # This shouldn't happen. If it does, ignore it
         return
@@ -116,14 +118,14 @@ async def remove_member_emoji_handler(rp):
 
     await party.remove_member(rp.member, rp.message)
     channel_info.clear_party_message_of_user(rp.member)
-    database.save(db)
+    db.save()
 
 
 async def handle_full_party(party, party_message):
     channel = party_message.channel
     guild = party_message.guild
-    db = database.load()
-    channel_info = db[channel.id]
+    db = Database.load()
+    channel_info = db.party_channels()[str(channel.id)]
     channel_above = channel_info.get_channel_above(guild)
     category = guild.get_channel(channel_above.category_id)
 
@@ -163,9 +165,9 @@ async def handle_full_party(party, party_message):
                " ".join([m.mention for m in party.members])
     trashcode = set()
     for m in party.members:
-        db[channel.id].clear_party_message_of_user(m)
-    db[channel.id].clear_party_message_of_user(party.leader)
-    database.save(db)
+        db.party_channels()[str(channel.id)].clear_party_message_of_user(m)
+    db.party_channels()[str(channel.id)].clear_party_message_of_user(party.leader)
+    db.save()
     await party_message.delete()
 
     # send additional message, notifying members
@@ -177,7 +179,9 @@ async def handle_full_party(party, party_message):
                                  f"After that, the channel gets deleted as soon as it "
                                  f"empties out.")
     channel_time_protection_set.add(vc.id)
-    asyncio.ensure_future(channel_time_protection(vc))
+    asyncio.ensure_future(channel_time_protection(vc, callback=lambda vc:
+                                                  channel_time_protection_set \
+                                                  .remove(vc.id)))
     asyncio.ensure_future(message_delayed_delete(message))
 
 
@@ -207,25 +211,26 @@ async def close_party(rp):
         message = await channel.send(f"> {rp.member.mention} has just "
                                      f"disbanded their party!\n")
     await rp.message.delete()
-    db = database.load()
+    db = Database.load()
     for m in party.members:
-        db[channel.id].clear_party_message_of_user(m)
-    db[channel.id].clear_party_message_of_user(party.leader)
-    database.save(db)
+        db.party_channels()[str(channel.id)].clear_party_message_of_user(m)
+    db.party_channels()[str(channel.id)].clear_party_message_of_user(party.leader)
+    db.save()
     asyncio.ensure_future(message_delayed_delete(message))
 
 
 async def start_party(rp):
     await rp.message.remove_reaction(Emojis.TADA, rp.member)
     channel = rp.channel
-    db = database.load()
-    if channel.id not in db:
+    db = Database.load()
+    if str(channel.id) not in db.party_channels():
         # this happens if the channel got deactivated but
         # the menu wasn't deleted
         delete_message = await channel.send(f"Channel has not been configured "
                                             f"for party matchmaking")
         asyncio.ensure_future(message_delayed_delete(delete_message))
-    channel_info = db[channel.id]
+        return
+    channel_info = db.party_channels()[str(channel.id)]
 
     if await channel_info.get_party_message_of_user(rp.member) is not None:
         delete_message = await channel.send(f"{rp.member.mention}, you are "
@@ -242,7 +247,7 @@ async def start_party(rp):
     await message.add_reaction(Emojis.FAST_FORWARD)
     await message.add_reaction(Emojis.NO_ENTRY_SIGN)
     channel_info.set_party_message_of_user(rp.member, message)
-    database.save(db)
+    db.save()
 
 
 async def handle_party_emptied(matchmaking_channel_id, voice_channel):
@@ -251,28 +256,10 @@ async def handle_party_emptied(matchmaking_channel_id, voice_channel):
         return
 
     await voice_channel.delete()
-    db = database.load()
-    db[matchmaking_channel_id].active_voice_channels.remove(voice_channel.id)
-    database.save(db)
-
-
-# a channel only gets auto-deleted when people leave
-# if the channel is above a certain age
-# This doesn't need to be persistent, on bot restart,
-# all channels are unprotected
-channel_time_protection_set = set()
-
-
-async def channel_time_protection(voice_channel):
-    await asyncio.sleep(config.CHANNEL_TIME_PROTECTION_LENGTH_SECONDS)
-    channel_time_protection_set.remove(voice_channel.id)
-    if len(voice_channel.members) == 0:
-        await voice_channel.delete()
-
-
-async def message_delayed_delete(message):
-    await asyncio.sleep(config.MESSAGE_DELETE_DELAY_SECONDS)
-    await message.delete()
+    db = Database.load()
+    db.party_channels()[str(matchmaking_channel_id)] \
+        .active_voice_channels.remove(voice_channel.id)
+    db.save()
 
 
 def _user_snowflake_to_id(snowflake):
