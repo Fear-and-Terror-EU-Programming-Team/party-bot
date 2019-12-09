@@ -32,6 +32,11 @@ async def on_ready():
 
 
 @bot.event
+async def on_message(message):
+    await process_role_message(message)
+    await bot.process_commands(message)
+
+@bot.event
 async def on_raw_reaction_add(payload):
     await handle_react(payload, True)
 
@@ -194,10 +199,20 @@ def is_admin():
     return commands.check(predicate)
 
 
-def translate_emoji_game_name(message, emoji):
-    emoji = str(emoji)
+async def process_role_message(message):
+    if not party.is_admin(message.author):
+        return # ignore non-admin message
+    if message.author is bot.user:
+        return # ignore bot messages
+    db = Database.load()
+    if not str(message.channel.id) in db.games_channels():
+        return # ignore messages in non-games channels
 
-    # get all emoji-to-role translations by parsing the message
+    translations = get_emoji_game_name_translations(message)
+    for emoji in translations.keys():
+        await message.add_reaction(emoji) # custom emojis?
+
+def get_emoji_game_name_translations(message):
     translations = {}
     pattern = r">* *([^ \n]+) ([^\n]+)"
     for match in re.finditer(pattern, message.content):
@@ -205,8 +220,16 @@ def translate_emoji_game_name(message, emoji):
         expected_emoji = str(expected_emoji) # this will ensure custom
                                              # emojis can also be checked via
                                              # string comparison
-        if expected_emoji == emoji:
-            return game_name
+        translations[expected_emoji] = game_name
+    return translations
+
+
+def translate_emoji_game_name(message, emoji):
+    emoji = str(emoji)
+
+    # get all emoji-to-role translations by parsing the message
+    translations = get_emoji_game_name_translations(message)
+    return translations.get(emoji)
 
 ###############################################################################
 ## Commands

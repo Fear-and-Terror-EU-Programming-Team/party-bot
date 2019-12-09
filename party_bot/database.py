@@ -15,14 +15,14 @@ class Database:
 
     __DEFAULT_RAW_DB = {
         "party_channel_infos": {},
-        "games_channels": {},
+        "games_channel_infos": {},
     }
 
     def load():
         '''Returns the database containing a (Channel ID) -> (ChannelInformation)
         mapping.'''
         if not os.path.exists(config.DATABASE_FILENAME):
-            save(__DEFAULT_RAW_DB) # empty DB
+            Database(Database.__DEFAULT_RAW_DB).save() # empty DB
         with open(config.DATABASE_FILENAME, "r") as f:
             db = jsonpickle.loads(f.read())
 
