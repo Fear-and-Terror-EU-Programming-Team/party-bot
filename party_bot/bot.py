@@ -36,6 +36,7 @@ async def on_message(message):
     await process_role_message(message)
     await bot.process_commands(message)
 
+
 @bot.event
 async def on_raw_reaction_add(payload):
     await handle_react(payload, True)
@@ -212,14 +213,12 @@ async def process_role_message(message):
     for emoji in translations.keys():
         await message.add_reaction(emoji) # custom emojis?
 
+
 def get_emoji_game_name_translations(message):
     translations = {}
     pattern = r">* *([^ \n]+) ([^\n]+)"
     for match in re.finditer(pattern, message.content):
         expected_emoji, game_name = match.group(1,2)
-        expected_emoji = str(expected_emoji) # this will ensure custom
-                                             # emojis can also be checked via
-                                             # string comparison
         translations[expected_emoji] = game_name
     return translations
 
