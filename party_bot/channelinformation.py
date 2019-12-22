@@ -9,8 +9,12 @@ class _BaseChannelInformation():
     def __init__(self, channel_above):
         self.__channel_above_id = channel_above.id
 
-    def get_channel_above(self, guild):
-        return guild.get_channel(self.__channel_above_id)
+    async def fetch_channel_above(self, guild):
+        # ugly hack to avoid cache inconsistency
+        channels = await guild.fetch_channels()
+        for c in channels:
+            if c.id == self.__channel_above_id:
+                return c
 
 
 class PartyChannelInformation(_BaseChannelInformation):

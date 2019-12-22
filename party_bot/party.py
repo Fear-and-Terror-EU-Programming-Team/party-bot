@@ -126,7 +126,7 @@ async def handle_full_party(party, party_message):
     guild = party_message.guild
     db = Database.load()
     channel_info = db.party_channels()[str(channel.id)]
-    channel_above = channel_info.get_channel_above(guild)
+    channel_above = await channel_info.fetch_channel_above(guild)
     category = guild.get_channel(channel_above.category_id)
 
     overwrites = {

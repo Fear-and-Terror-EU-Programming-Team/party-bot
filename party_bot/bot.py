@@ -117,7 +117,7 @@ async def handle_react_games_channel(rp, was_added):
         channel_info.counters[game_name] = 0
     channel_info.counters[game_name] += 1
     counter = channel_info.counters[game_name]
-    channel_above = channel_info.get_channel_above(rp.guild)
+    channel_above = await channel_info.fetch_channel_above(rp.guild)
     category = rp.guild.get_channel(channel_above.category_id)
 
     vc = await rp.guild.create_voice_channel(f"{game_name} - #{counter}",
