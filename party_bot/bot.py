@@ -150,11 +150,17 @@ async def handle_react_games_channel(rp, was_added):
     await vc.edit(position=channel_below_position + 0)
     channel_info.channel_owners.update({str(rp.member.id): str(vc.id)})
     db.save()
+    prot_delay_hours = config.GAMES_CHANNEL_TIME_PROTECTION_LENGTH_HOURS
     asyncio.ensure_future(channel_time_protection(vc, callback=lambda vc:\
-                            games_channel_deletion_callback(rp.channel, vc)))
+                            games_channel_deletion_callback(rp.channel, vc),
+                            delay=prot_delay_hours*3600))
 
     message = await rp.channel.send(f"{rp.member.mention} "
-                                    f"Connect to {vc.mention}.")
+                                    f"Connect to {vc.mention}. "
+                                    f"Your channel will stay open for "
+                                    f"{prot_delay_hours} hours. "
+                                    f"After that, it gets deleted as soon as "
+                                    f"it empties out.")
     asyncio.ensure_future(message_delayed_delete(message))
 
 

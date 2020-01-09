@@ -8,8 +8,9 @@ import config
 channel_time_protection_set = set()
 
 
-async def channel_time_protection(voice_channel, callback=None):
-    await asyncio.sleep(config.CHANNEL_TIME_PROTECTION_LENGTH_SECONDS)
+async def channel_time_protection(voice_channel, callback=None,
+                                  delay=config.CHANNEL_TIME_PROTECTION_LENGTH_SECONDS):
+    await asyncio.sleep(delay)
     if len(voice_channel.members) == 0:
         await voice_channel.delete()
 
