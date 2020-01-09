@@ -46,6 +46,30 @@ async def on_raw_reaction_add(payload):
 async def on_raw_reaction_remove(payload):
     await handle_react(payload, False)
 
+@bot.event
+async def on_raw_message_edit(payload):
+    # TODO change to following once discord.py 1.3.0 is released
+    #message = await bot.get_channel(payload.channel_id) \
+    #    .fetch_message(payload.message_id)
+    #if str(payload.channel_id) not in db.games_channels():
+    #    return # ignore message outside of games channels
+
+    db = Database.load()
+    message = None
+    for c_id in db.games_channels().keys():
+        c = bot.get_channel(int(c_id))
+        try:
+            message = await c.fetch_message(payload.message_id)
+            break
+        except discord.errors.NotFound as e:
+            pass
+
+    if message is None:
+        return # message not in active games channel
+
+    await message.clear_reactions()
+    await process_role_message(message)
+
 
 @synchronized  # users will break this if it's not done in sequential order
 async def handle_react(payload, was_added):
@@ -117,12 +141,13 @@ async def handle_react_games_channel(rp, was_added):
         channel_info.counters[game_name] = 0
     channel_info.counters[game_name] += 1
     counter = channel_info.counters[game_name]
-    channel_above = await channel_info.fetch_channel_above(rp.guild)
-    category = rp.guild.get_channel(channel_above.category_id)
+    channel_below, channel_below_position = \
+            await channel_info.fetch_channel_below(rp.guild)
+    category = rp.guild.get_channel(channel_below.category_id)
 
     vc = await rp.guild.create_voice_channel(f"{game_name} - #{counter}",
                                              category=category)
-    await vc.edit(position=channel_above.position + 1)
+    await vc.edit(position=channel_below_position + 0)
     channel_info.channel_owners.update({str(rp.member.id): str(vc.id)})
     db.save()
     asyncio.ensure_future(channel_time_protection(vc, callback=lambda vc:\
@@ -317,9 +342,9 @@ async def deactivatechannel_error(ctx, error):
 
 @bot.command()
 @is_admin()
-async def activategameschannel(ctx, channel_above_id: int):
-    channel_above = ctx.guild.get_channel(channel_above_id)
-    if channel_above is None:
+async def activategameschannel(ctx, channel_below_id: int):
+    channel_below = ctx.guild.get_channel(channel_below_id)
+    if channel_below is None:
         raise commands.errors.BadArgument()
 
     db = Database.load()
@@ -331,7 +356,7 @@ async def activategameschannel(ctx, channel_above_id: int):
     message = await ctx.send(f"Channel activated for side-game party creation.")
     asyncio.ensure_future(message_delayed_delete(message))
 
-    channel_info = GamesChannelInformation(channel_above)
+    channel_info = GamesChannelInformation(ctx.channel, channel_below)
     games_channels[str(ctx.channel.id)] = channel_info
     db.save()
 
@@ -339,7 +364,7 @@ async def activategameschannel(ctx, channel_above_id: int):
 @activategameschannel.error
 async def activategameschannel_error(ctx, error):
     error_handlers = get_default_error_handlers(ctx, "activategameschannel",
-                                                "CHANNEL_ABOVE_ID")
+                                                "CHANNEL_BELOW_ID")
     error_handlers.update({
         ChannelAlreadyActiveError: lambda:
         ctx.send("Channel already activated."),

@@ -126,7 +126,8 @@ async def handle_full_party(party, party_message):
     guild = party_message.guild
     db = Database.load()
     channel_info = db.party_channels()[str(channel.id)]
-    channel_above = await channel_info.fetch_channel_above(guild)
+    channel_above, channel_above_position = \
+            await channel_info.fetch_channel_above(guild)
     category = guild.get_channel(channel_above.category_id)
 
     overwrites = {
@@ -157,7 +158,7 @@ async def handle_full_party(party, party_message):
                                           f"- Party - #{counter}",
                                           category=category,
                                           overwrites=overwrites)
-    await vc.edit(position=channel_above.position + 1)
+    await vc.edit(position=channel_above_position + 1)
     channel_info.active_voice_channels.add(vc.id)
 
     # delete original party message
