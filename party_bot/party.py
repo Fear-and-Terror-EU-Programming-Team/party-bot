@@ -271,6 +271,7 @@ def _user_snowflake_to_id(snowflake):
 
 
 def is_admin(user):
-    return any([role.id in config.BOT_ADMIN_ROLES for role in user.roles])
+    return isinstance(user, discord.Member) and \
+        any([role.id in config.BOT_ADMIN_ROLES for role in user.roles])
 
 

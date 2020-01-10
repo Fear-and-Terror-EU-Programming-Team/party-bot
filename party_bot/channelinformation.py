@@ -44,8 +44,7 @@ class PartyChannelInformation(_BaseChannelInformation):
 
     def __init__(self, game_name, channel, max_slots, channel_above,
                  open_parties):
-        super(PartyChannelInformation, self) \
-                .__init__(channel_above=channel_above)
+        super(PartyChannelInformation, self).__init__(channel, channel_above)
         # Store all objects as their IDs to allow easier serialization
         self.game_name = game_name
         self.max_slots = max_slots
