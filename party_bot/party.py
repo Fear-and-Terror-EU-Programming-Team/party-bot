@@ -1,11 +1,10 @@
 import asyncio
 import config
 import discord
-from database import Database
+import scheduling
+from database import db
 from emojis import Emojis
 from strings import Strings
-from timers import channel_time_protection, channel_time_protection_set, \
-                   message_delayed_delete
 
 
 class Party():
@@ -83,8 +82,7 @@ async def add_member_emoji_handler(rp):
     party = await Party.from_party_message(rp.message)
     message = rp.message
     channel = rp.channel
-    db = Database.load()
-    channel_info = db.party_channels()[str(channel.id)]
+    channel_info = db.party_channels[channel.id]
 
     if party.slots_left < 1 \
             or rp.member == party.leader:  # leader can't join as member
@@ -95,11 +93,10 @@ async def add_member_emoji_handler(rp):
                                             f"already in another party! "
                                             f"Leave that party before trying "
                                             f"to join another.")
-        asyncio.ensure_future(message_delayed_delete(delete_message))
+        scheduling.message_delayed_delete(delete_message)
         await rp.message.remove_reaction(Emojis.WHITE_CHECK_MARK, rp.member)
         return
     channel_info.set_party_message_of_user(rp.member, message)
-    db.save()
     await party.add_member(rp.member, rp.message)
     if party.slots_left < 1:
         await handle_full_party(party, rp.message)
@@ -108,8 +105,7 @@ async def add_member_emoji_handler(rp):
 async def remove_member_emoji_handler(rp):
     party = await Party.from_party_message(rp.message)
     channel = rp.channel
-    db = Database.load()
-    channel_info = db.party_channels()[str(channel.id)]
+    channel_info = db.party_channels[channel.id]
     if rp.member not in party.members:
         # This shouldn't happen. If it does, ignore it
         return
@@ -118,14 +114,12 @@ async def remove_member_emoji_handler(rp):
 
     await party.remove_member(rp.member, rp.message)
     channel_info.clear_party_message_of_user(rp.member)
-    db.save()
 
 
 async def handle_full_party(party, party_message):
     channel = party_message.channel
     guild = party_message.guild
-    db = Database.load()
-    channel_info = db.party_channels()[str(channel.id)]
+    channel_info = db.party_channels[channel.id]
     channel_above, channel_above_position = \
             await channel_info.fetch_channel_above(guild)
     category = guild.get_channel(channel_above.category_id)
@@ -164,26 +158,22 @@ async def handle_full_party(party, party_message):
     # delete original party message
     mentions = f"{party.leader.mention} " + \
                " ".join([m.mention for m in party.members])
-    trashcode = set()
     for m in party.members:
-        db.party_channels()[str(channel.id)].clear_party_message_of_user(m)
-    db.party_channels()[str(channel.id)].clear_party_message_of_user(party.leader)
-    db.save()
+        db.party_channels[channel.id].clear_party_message_of_user(m)
+    db.party_channels[channel.id].clear_party_message_of_user(party.leader)
     await party_message.delete()
 
     # send additional message, notifying members
     message = await channel.send(f"{mentions}. Matchmaking done. "
                                  f"Connect to {vc.mention}. "
                                  f"You have "
-                                 f"{config.CHANNEL_TIME_PROTECTION_LENGTH_SECONDS} "
+                                 f"{config.PARTY_CHANNEL_GRACE_PERIOD_SECONDS} "
                                  f"seconds to join. "
                                  f"After that, the channel gets deleted as soon as it "
                                  f"empties out.")
-    channel_time_protection_set.add(vc.id)
-    asyncio.ensure_future(channel_time_protection(vc, callback=lambda vc:
-                                                  channel_time_protection_set \
-                                                  .remove(vc.id)))
-    asyncio.ensure_future(message_delayed_delete(message))
+    scheduling.channel_start_grace_period(vc,
+                                    config.PARTY_CHANNEL_GRACE_PERIOD_SECONDS)
+    scheduling.message_delayed_delete(message)
 
 
 async def force_start_party(rp):
@@ -191,7 +181,7 @@ async def force_start_party(rp):
     # only leader can start the party
     # and don't start empty parties
     if rp.member != party.leader \
-            or len(party.members) == 0:
+            or len(party.members) != 0: # TODO change
         await rp.message.remove_reaction(Emojis.FAST_FORWARD, rp.member)
         return
 
@@ -212,33 +202,30 @@ async def close_party(rp):
         message = await channel.send(f"> {rp.member.mention} has just "
                                      f"disbanded their party!\n")
     await rp.message.delete()
-    db = Database.load()
     for m in party.members:
-        db.party_channels()[str(channel.id)].clear_party_message_of_user(m)
-    db.party_channels()[str(channel.id)].clear_party_message_of_user(party.leader)
-    db.save()
-    asyncio.ensure_future(message_delayed_delete(message))
+        db.party_channels[channel.id].clear_party_message_of_user(m)
+    db.party_channels[channel.id].clear_party_message_of_user(party.leader)
+    scheduling.message_delayed_delete(message)
 
 
 async def start_party(rp):
     await rp.message.remove_reaction(Emojis.TADA, rp.member)
     channel = rp.channel
-    db = Database.load()
-    if str(channel.id) not in db.party_channels():
+    if channel.id not in db.party_channels:
         # this happens if the channel got deactivated but
         # the menu wasn't deleted
         delete_message = await channel.send(f"Channel has not been configured "
                                             f"for party matchmaking")
-        asyncio.ensure_future(message_delayed_delete(delete_message))
+        scheduling.message_delayed_delete(delete_message)
         return
-    channel_info = db.party_channels()[str(channel.id)]
+    channel_info = db.party_channels[channel.id]
 
     if await channel_info.get_party_message_of_user(rp.member) is not None:
         delete_message = await channel.send(f"{rp.member.mention}, you are "
                                             f"already in another party! "
                                             f"Leave that party before trying "
                                             f"to create another one.")
-        asyncio.ensure_future(message_delayed_delete(delete_message))
+        scheduling.message_delayed_delete(delete_message)
         return
 
     max_slots = channel_info.max_slots
@@ -248,19 +235,16 @@ async def start_party(rp):
     await message.add_reaction(Emojis.FAST_FORWARD)
     await message.add_reaction(Emojis.NO_ENTRY_SIGN)
     channel_info.set_party_message_of_user(rp.member, message)
-    db.save()
 
 
 async def handle_party_emptied(matchmaking_channel_id, voice_channel):
     # grace period for new channels
-    if voice_channel.id in channel_time_protection_set:
+    if voice_channel.id in scheduling.channel_ids_grace_period:
         return
 
     await voice_channel.delete()
-    db = Database.load()
-    db.party_channels()[str(matchmaking_channel_id)] \
+    db.party_channels[matchmaking_channel_id] \
         .active_voice_channels.remove(voice_channel.id)
-    db.save()
 
 
 def _user_snowflake_to_id(snowflake):

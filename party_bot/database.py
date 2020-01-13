@@ -1,39 +1,24 @@
 import config
-import jsonpickle
-import os
+import persistent
+import transaction
+import sys
+import ZODB
+from dataclasses import dataclass
 
-class Database:
-    def __init__(self, raw_db):
-        self.__raw_db = raw_db
+class _Database(persistent.Persistent):
 
-
-    def party_channels(self):
-        return self.__raw_db["party_channel_infos"]
-
-    def games_channels(self):
-        return self.__raw_db["games_channel_infos"]
-
-    __DEFAULT_RAW_DB = {
-        "party_channel_infos": {},
-        "games_channel_infos": {},
-    }
-
-    def load():
-        '''Returns the database containing a (Channel ID) -> (ChannelInformation)
-        mapping.'''
-        if not os.path.exists(config.DATABASE_FILENAME):
-            Database(Database.__DEFAULT_RAW_DB).save() # empty DB
-        with open(config.DATABASE_FILENAME, "r") as f:
-            db = jsonpickle.loads(f.read())
-
-        return Database(db)
+    def __init__(self):
+        self.party_channels = persistent.mapping.PersistentMapping()
+        self.games_channels = persistent.mapping.PersistentMapping()
 
 
-    def save(self):
-        '''Saves the specified database.
+sys.stdout.write("Starting database...")
+connection = ZODB.connection(config.DATABASE_FILENAME)
+root = connection.root
+if not hasattr(root, "db"):
+    database = _Database()
+    root.db = database
+    transaction.commit()
 
-        The database has to be a (Channel ID) -> (ChannelInformation) mapping.
-        '''
-        jsonpickle.set_encoder_options("simplejson", indent=4, sort_keys=True)
-        with open(config.DATABASE_FILENAME, "w") as f:
-            f.write(jsonpickle.dumps(self.__raw_db))
+db = root.db
+sys.stdout.write("done\n")

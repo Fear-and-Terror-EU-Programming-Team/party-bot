@@ -1,10 +1,12 @@
 import database
 import discord
+import persistent
 import sys
 from bidict import bidict
+from BTrees.OOBTree import TreeSet
 
 
-class _BaseChannelInformation():
+class _BaseChannelInformation(persistent.Persistent):
 
     def __init__(self, channel, reference_channel):
         self.id = channel.id
@@ -48,15 +50,16 @@ class PartyChannelInformation(_BaseChannelInformation):
         # Store all objects as their IDs to allow easier serialization
         self.game_name = game_name
         self.max_slots = max_slots
-        self.active_voice_channels = set()
         self.voice_channel_counter = 1
-        self.__active_party_members_and_leaders = {}
+        self.__active_party_members_and_leaders = \
+            persistent.mapping.PersistentMapping()
         self.open_parties = open_parties
+        self.active_voice_channels = TreeSet()
 
 
     async def get_party_message_of_user(self, member):
         channel = member.guild.get_channel(self.id)
-        message_id = self.__active_party_members_and_leaders.get(str(member.id))
+        message_id = self.__active_party_members_and_leaders.get(member.id)
         if message_id == None:
             return None
 
@@ -73,16 +76,16 @@ class PartyChannelInformation(_BaseChannelInformation):
         return message
 
     def set_party_message_of_user(self, user, message):
-        self.__active_party_members_and_leaders[str(user.id)] = str(message.id)
+        self.__active_party_members_and_leaders[user.id] = message.id
 
     def clear_party_message_of_user(self, user):
-        del self.__active_party_members_and_leaders[str(user.id)]
+        del self.__active_party_members_and_leaders[user.id]
 
 
 class GamesChannelInformation(_BaseChannelInformation):
 
     def __init__(self, channel, channel_below):
         super(GamesChannelInformation, self).__init__(channel, channel_below)
-        self.counters = {}
-        self.channel_owners = bidict()
+        self.counters = persistent.mapping.PersistentMapping()
+        self.channel_owners = persistent.mapping.PersistentMapping()
 

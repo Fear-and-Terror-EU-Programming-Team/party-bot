@@ -7,28 +7,30 @@ import config
 import discord
 import party
 import re
+import scheduling
 import sys
+import transaction
 from channelinformation import PartyChannelInformation, GamesChannelInformation
 from party import Party
-from database import Database
+from database import db
 from discord.ext import commands
 from emojis import Emojis
 from strings import Strings
 from synchronization import synchronized
-from timers import channel_time_protection, message_delayed_delete
 
 bot = commands.Bot(command_prefix=config.BOT_CMD_PREFIX)
-
 
 ###############################################################################
 ## Events
 ###############################################################################
 @bot.event
 async def on_ready():
+    config.init_config(bot)
     print('Logged in as')
     print(bot.user.name)
     print(bot.user.id)
     print('------')
+    scheduling.init_scheduler()
 
 
 @bot.event
@@ -54,10 +56,9 @@ async def on_raw_message_edit(payload):
     #if str(payload.channel_id) not in db.games_channels():
     #    return # ignore message outside of games channels
 
-    db = Database.load()
     message = None
-    for c_id in db.games_channels().keys():
-        c = bot.get_channel(int(c_id))
+    for c_id in db.games_channels.keys():
+        c = bot.get_channel(c_id)
         try:
             message = await c.fetch_message(payload.message_id)
             break
@@ -71,70 +72,71 @@ async def on_raw_message_edit(payload):
     await process_role_message(message)
 
 
-@synchronized  # users will break this if it's not done in sequential order
-async def handle_react(payload, was_added):
-    # ignore reaction if message was already deleted (synchronization stuff)
-    try:
-        await bot.get_channel(payload.channel_id) \
-                .fetch_message(payload.message_id)
-    except discord.NotFound as e:
-        return
+@synchronized
+async def handle_react(payload, added):
+    '''Executes the correct emoji handler
+    for the specified `ReactionPayload`.
+
+    If no appropriate emoji handler exists or the emoji handler returns
+    `False`, then the emoji reaction is removed.
+
+    For games channels, the generic games channels emoji handler is called.'''
 
     rp = await unwrap_payload(payload)
 
-    if rp.member == rp.guild.me:  # ignore bot reactions
-        return
+    if rp.member == rp.guild.me:
+        return # ignore bot reactions
 
-    db = Database.load()
-    if str(rp.channel.id) in db.party_channels():
-        await handle_react_party_channel(rp, was_added)
-    if str(rp.channel.id) in db.games_channels():
-        await handle_react_games_channel(rp, was_added)
+    success = False
 
-    # ignore otherwise
+    if rp.channel.id in db.party_channels.keys():
+        if rp.message.author != rp.guild.me:
+            return # ignore reactions on non-bot messages
+
+        # ignore reactions on messages other than the party message
+        # (identified by having exactly one embed)
+        if len(rp.message.embeds) != 1:
+            return
+
+        if str(rp.emoji) not in party_emoji_handlers:
+            await rp.message.remove_reaction(rp.emoji, rp.member)
+            return
+
+        # call appropriate handler
+        add, remove = party_emoji_handlers[str(rp.emoji)]
+        if added and add is not None:
+            success = await add(rp)
+        elif not added and remove is not None:
+            success = await remove(rp)
+
+    if rp.channel.id in db.games_channels.keys() and added:
+        success = await handle_react_games_channel(rp)
+
+    if success == False: # note that `None` is intentionally treated as True
+        await rp.message.remove_reaction(rp.emoji, rp.member)
+
+    transaction.commit()
 
 
-async def handle_react_party_channel(rp, was_added):
-    if rp.message.author != rp.guild.me:  # ignore reactions on non-bot messages
-        return
-    # ignore reactions on messages other than the party message
-    # (identified by having exactly one embed)
-    if len(rp.message.embeds) != 1:
-        return
-    if rp.emoji.name in emoji_handlers.keys():
-        add_handler, remove_handler = emoji_handlers[rp.emoji.name]
-        if was_added and add_handler is not None:
-            await add_handler(rp)
-        elif remove_handler is not None:
-            await remove_handler(rp)
-
-
-async def handle_react_games_channel(rp, was_added):
-    if not was_added:
-        return
-
-    await rp.message.remove_reaction(rp.emoji, rp.member)
-
+async def handle_react_games_channel(rp):
     game_name = translate_emoji_game_name(rp.message, rp.emoji)
     if game_name is None:
         return # ignore
 
+    channel_info = db.games_channels[rp.channel.id]
 
-    db = Database.load()
-    channel_info = db.games_channels()[str(rp.channel.id)]
     # check if user already created a party channel
-    vc_id = channel_info.channel_owners.get(str(rp.member.id))
+    vc_id = channel_info.channel_owners.get(rp.member.id)
     if vc_id is not None:
-        vc_id = int(vc_id)
         # make sure it's actually still there
         if rp.guild.get_channel(vc_id) is None:
             print(f"VC deletion was not tracked!\n"
                   f"- Owner: {rp.member}\n", file=sys.stderr)
-            del channel_info.channel_owners[str(rp.member.id)]
+            del channel_info.channel_owners[rp.member.id]
         else:
             message = await rp.channel.send(f"{rp.member.mention} "
                                             f"You already have an open channel.")
-            asyncio.ensure_future(message_delayed_delete(message))
+            scheduling.message_delayed_delete(message)
             return
 
     if game_name not in channel_info.counters:
@@ -148,12 +150,11 @@ async def handle_react_games_channel(rp, was_added):
     vc = await rp.guild.create_voice_channel(f"{game_name} - #{counter}",
                                              category=category)
     await vc.edit(position=channel_below_position + 0)
-    channel_info.channel_owners.update({str(rp.member.id): str(vc.id)})
-    db.save()
+    channel_info.channel_owners.update({rp.member.id: vc.id})
     prot_delay_hours = config.GAMES_CHANNEL_TIME_PROTECTION_LENGTH_HOURS
-    asyncio.ensure_future(channel_time_protection(vc, callback=lambda vc:\
-                            games_channel_deletion_callback(rp.channel, vc),
-                            delay=prot_delay_hours*3600))
+    scheduling.channel_start_grace_period(vc, prot_delay_hours*3600,
+                            delete_callback=games_channel_deletion_callback,
+                            delete_callback_args=[rp.channel.id])
 
     message = await rp.channel.send(f"{rp.member.mention} "
                                     f"Connect to {vc.mention}. "
@@ -161,21 +162,26 @@ async def handle_react_games_channel(rp, was_added):
                                     f"{prot_delay_hours} hours. "
                                     f"After that, it gets deleted as soon as "
                                     f"it empties out.")
-    asyncio.ensure_future(message_delayed_delete(message))
+    scheduling.message_delayed_delete(message)
+
+    return # will always remove emoji reaction
 
 
-def games_channel_deletion_callback(games_channel, voice_channel):
-    db = Database.load()
-    channel_info = db.games_channels()[str(games_channel.id)]
-    del channel_info.channel_owners.inverse[str(voice_channel.id)]
-    db.save()
+def games_channel_deletion_callback(voice_channel, games_channel_id):
+    channel_info = db.games_channels[games_channel_id]
+
+    # get owner of channel and remove him from the channel_owners dict
+    for owner_id, vc_id in channel_info.channel_owners.items():
+        if vc_id == voice_channel.id:
+            del channel_info.channel_owners[owner_id]
+            break
 
 
-# handle emoji reactions being added deleted/
+# handle emoji reactions being added / deleted
 # Format:
 #   Emoji : (add_handler, remove_handler)
 # All handlers are expected to take exactly one argument: the ReactionPayload
-emoji_handlers = {
+party_emoji_handlers = {
     Emojis.WHITE_CHECK_MARK:
         (party.add_member_emoji_handler, party.remove_member_emoji_handler),
     Emojis.FAST_FORWARD:
@@ -197,16 +203,18 @@ async def on_voice_state_update(member, before, after):
         return
 
     # only track channels created by the party bot
-    db = Database.load()
-    mm_channel_id = None
-    for cur_mm_channel_id, cur_mm_channel_info in db.party_channels().items():
-        if channel.id in cur_mm_channel_info.active_voice_channels:
-            mm_channel_id = cur_mm_channel_id
-            break
-    if mm_channel_id == None:
-        return
 
-    await party.handle_party_emptied(mm_channel_id, channel)
+    # if it's a party channel
+    for mm_id, info in db.party_channels.items():
+        if channel.id in info.active_voice_channels:
+            await party.handle_party_emptied(mm_id, channel)
+            break
+
+    # if it's a games channel
+    for gc_id, info in db.games_channels.items():
+        if channel.id in info.channel_owners.items():
+            await channel.delete()
+            games_channel_deletion_callback(channel, gc_id)
 
 
 class ReactionPayload():
@@ -236,8 +244,7 @@ async def process_role_message(message):
         return # ignore non-admin message
     if message.author is bot.user:
         return # ignore bot messages
-    db = Database.load()
-    if not str(message.channel.id) in db.games_channels():
+    if not message.channel.id in db.games_channels:
         return # ignore messages in non-games channels
 
     translations = get_emoji_game_name_translations(message)
@@ -282,8 +289,7 @@ async def activatechannel(ctx, game_name: str,
     if channel_above is None:
         raise commands.errors.BadArgument()
 
-    db = Database.load()
-    if ctx.channel.id not in db.party_channels():
+    if ctx.channel.id not in db.party_channels:
         await ctx.message.delete()
         await ctx.send(f"This channel has been activated for party matchmaking. ")
 
@@ -294,8 +300,7 @@ async def activatechannel(ctx, game_name: str,
     channel_info = PartyChannelInformation(game_name, ctx.channel, max_slots,
                                            channel_above, open_parties)
 
-    db.party_channels()[str(ctx.channel.id)] = channel_info
-    db.save()
+    db.party_channels[ctx.channel.id] = channel_info
     await ctx.channel.purge(limit=100, check=is_me)
     embed = discord.Embed.from_dict({
         "title": "Game: %s" % game_name,
@@ -324,13 +329,11 @@ def is_me(m):
 @is_admin()
 async def deactivatechannel(ctx):
     check_channel(ctx.channel)
-    db = Database.load()
-    del db.party_channels()[str(ctx.channel.id)]
-    db.save()
+    del db.party_channels[ctx.channel.id]
     await ctx.message.delete()
     await ctx.channel.purge(limit=100, check=is_me)
     message = await ctx.send(f"Party matchmaking disabled for this channel.")
-    asyncio.ensure_future(message_delayed_delete(message))
+    scheduling.message_delayed_delete(message)
 
 
 @deactivatechannel.error
