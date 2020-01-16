@@ -91,7 +91,7 @@ async def handle_react(payload, added):
             and rp.channel.id not in db.games_channels.keys():
         return # ignore reactions in unrelated channels
 
-    success = False
+    keep_reaction = False
 
     if rp.channel.id in db.party_channels.keys():
         if rp.message.author != rp.guild.me:
@@ -109,15 +109,18 @@ async def handle_react(payload, added):
         # call appropriate handler
         add, remove = party_emoji_handlers[str(rp.emoji)]
         if added and add is not None:
-            success = await add(rp)
+            keep_reaction = await add(rp)
         elif not added and remove is not None:
-            success = await remove(rp)
+            keep_reaction = await remove(rp)
 
     if rp.channel.id in db.games_channels.keys() and added:
-        success = await handle_react_games_channel(rp)
+        keep_reaction = await handle_react_games_channel(rp)
 
-    if success == False: # note that `None` is intentionally treated as True
-        await rp.message.remove_reaction(rp.emoji, rp.member)
+    if keep_reaction != True: # note that `None` is intentionally treated as False
+        try:
+            await rp.message.remove_reaction(rp.emoji, rp.member)
+        except discord.NotFound:
+            pass # message was already deleted
 
     transaction.commit()
 
@@ -155,7 +158,7 @@ async def handle_react_games_channel(rp):
                                              category=category)
     await vc.edit(position=channel_below_position + 0)
     channel_info.channel_owners.update({rp.member.id: vc.id})
-    prot_delay_hours = config.GAMES_CHANNEL_TIME_PROTECTION_LENGTH_HOURS
+    prot_delay_hours = config.GAMES_CHANNEL_GRACE_PERIOD_HOURS
     scheduling.channel_start_grace_period(vc, prot_delay_hours*3600,
                             delete_callback=games_channel_deletion_callback,
                             delete_callback_args=[rp.channel.id])

@@ -86,20 +86,19 @@ async def add_member_emoji_handler(rp):
 
     if party.slots_left < 1 \
             or rp.member == party.leader:  # leader can't join as member
-        await rp.message.remove_reaction(Emojis.WHITE_CHECK_MARK, rp.member)
-        return
+        return False # remove reaction
     if await channel_info.get_party_message_of_user(rp.member) is not None:
         delete_message = await channel.send(f"{rp.member.mention}, you are "
                                             f"already in another party! "
                                             f"Leave that party before trying "
                                             f"to join another.")
         scheduling.message_delayed_delete(delete_message)
-        await rp.message.remove_reaction(Emojis.WHITE_CHECK_MARK, rp.member)
-        return
+        return False # remove reaction
     channel_info.set_party_message_of_user(rp.member, message)
     await party.add_member(rp.member, rp.message)
     if party.slots_left < 1:
         await handle_full_party(party, rp.message)
+    return True # keep reaction
 
 
 async def remove_member_emoji_handler(rp):
