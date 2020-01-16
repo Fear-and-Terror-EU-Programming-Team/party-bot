@@ -1,5 +1,6 @@
 import asyncio
 import config
+import discord
 import pytz
 import sys
 import transaction
@@ -51,17 +52,12 @@ def channel_start_grace_period(voice_channel, grace_period_seconds,
 
 async def _remove_grace_protection(voice_channel_id, delete_callback,
                                    delete_callback_args):
-    try:
-        voice_channel = config.bot.get_channel(voice_channel_id)
+    voice_channel = config.bot.get_channel(voice_channel_id)
 
-        if len(voice_channel.members) == 0:
-            await voice_channel.delete()
-            if delete_callback is not None:
-                delete_callback(voice_channel, *delete_callback_args)
-
-    except discord.NotFound as e:
-        # channel was already deleted
-        return
+    if voice_channel is not None or len(voice_channel.members) == 0:
+        await voice_channel.delete()
+        if delete_callback is not None:
+            delete_callback(voice_channel, *delete_callback_args)
 
     channel_ids_grace_period.discard(voice_channel_id)
 

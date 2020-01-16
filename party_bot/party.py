@@ -181,7 +181,7 @@ async def force_start_party(rp):
     # only leader can start the party
     # and don't start empty parties
     if rp.member != party.leader \
-            or len(party.members) != 0: # TODO change
+            or len(party.members) == 0:
         await rp.message.remove_reaction(Emojis.FAST_FORWARD, rp.member)
         return
 

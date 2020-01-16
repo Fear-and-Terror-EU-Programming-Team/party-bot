@@ -53,7 +53,7 @@ async def on_raw_message_edit(payload):
     # TODO change to following once discord.py 1.3.0 is released
     #message = await bot.get_channel(payload.channel_id) \
     #    .fetch_message(payload.message_id)
-    #if str(payload.channel_id) not in db.games_channels():
+    #if payload.channel_id not in db.games_channels:
     #    return # ignore message outside of games channels
 
     message = None
@@ -356,18 +356,15 @@ async def activategameschannel(ctx, channel_below_id: int):
     if channel_below is None:
         raise commands.errors.BadArgument()
 
-    db = Database.load()
-    games_channels = db.games_channels()
-    if ctx.channel.id in games_channels:
+    if ctx.channel.id in db.games_channels:
         raise ChannelAlreadyActiveError()
 
     await ctx.message.delete()
     message = await ctx.send(f"Channel activated for side-game party creation.")
-    asyncio.ensure_future(message_delayed_delete(message))
+    scheduling.message_delayed_delete(message)
 
     channel_info = GamesChannelInformation(ctx.channel, channel_below)
-    games_channels[str(ctx.channel.id)] = channel_info
-    db.save()
+    db.games_channels[ctx.channel.id] = channel_info
 
 
 @activategameschannel.error
@@ -384,17 +381,14 @@ async def activategameschannel_error(ctx, error):
 @bot.command()
 @is_admin()
 async def deactivategameschannel(ctx):
-    db = Database.load()
-    games_channels = db.games_channels()
-    if str(ctx.channel.id) not in games_channels:
+    if ctx.channel.id not in db.games_channels:
         raise InactiveChannelError()
 
     await ctx.message.delete()
     message = await ctx.send(f"Channel deactivated for side-game party creation.")
-    asyncio.ensure_future(message_delayed_delete(message))
+    scheduling.message_delayed_delete(message)
 
-    del games_channels[str(ctx.channel.id)]
-    db.save()
+    del db.games_channels[ctx.channel.id]
 
 
 @deactivategameschannel.error
@@ -469,7 +463,7 @@ def send_error(ctx, text):
 def check_channel(channel):
     '''Raises an InactiveChannelError if the channel is not marked as active.'''
     db = Database.load()
-    if str(channel.id) not in db.party_channels():
+    if channel.id not in db.party_channels:
         raise InactiveChannelError()
 
 
