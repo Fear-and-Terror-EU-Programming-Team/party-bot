@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S python3 -u
 '''
 Fear and Terror's bot for party matchmaking on Discord
 '''
