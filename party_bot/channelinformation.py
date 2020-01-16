@@ -2,7 +2,6 @@ import database
 import discord
 import persistent
 import sys
-from bidict import bidict
 from BTrees.OOBTree import TreeSet
 
 

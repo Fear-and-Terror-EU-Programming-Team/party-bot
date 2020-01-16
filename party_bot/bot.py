@@ -87,6 +87,10 @@ async def handle_react(payload, added):
     if rp.member == rp.guild.me:
         return # ignore bot reactions
 
+    if rp.channel.id not in db.party_channels.keys() \
+            and rp.channel.id not in db.games_channels.keys():
+        return # ignore reactions in unrelated channels
+
     success = False
 
     if rp.channel.id in db.party_channels.keys():
