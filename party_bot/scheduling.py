@@ -54,7 +54,7 @@ async def _remove_grace_protection(voice_channel_id, delete_callback,
                                    delete_callback_args):
     voice_channel = config.bot.get_channel(voice_channel_id)
 
-    if voice_channel is not None or len(voice_channel.members) == 0:
+    if voice_channel is not None and len(voice_channel.members) == 0:
         await voice_channel.delete()
         if delete_callback is not None:
             delete_callback(voice_channel, *delete_callback_args)
