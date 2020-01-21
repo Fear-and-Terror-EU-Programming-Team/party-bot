@@ -45,7 +45,7 @@ async def _message_delayed_delete(message_id, channel_id):
 def channel_start_grace_period(voice_channel, grace_period_seconds,
                                      delete_callback=None,
                                      delete_callback_args=[]):
-    channel_ids_grace_period.add(voice_channel)
+    channel_ids_grace_period.add(voice_channel.id)
     delayed_execute(_remove_grace_protection,
                     [voice_channel.id, delete_callback, delete_callback_args],
                     timedelta(seconds=grace_period_seconds))

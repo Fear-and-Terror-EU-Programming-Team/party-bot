@@ -35,8 +35,8 @@ async def on_ready():
 
 @bot.event
 async def on_message(message):
-    await process_role_message(message)
     await bot.process_commands(message)
+    await process_role_message(message)
 
 
 @bot.event
@@ -209,17 +209,20 @@ async def on_voice_state_update(member, before, after):
     if len(channel.members) > 0:  # only react on empty channels
         return
 
-    # only track channels created by the party bot
+    # ignore channels that are still in grace peroid
+    if channel.id in scheduling.channel_ids_grace_period:
+        return
 
-    # if it's a party channel
+    # only track channels created by the party bot
+    # party channels
     for mm_id, info in db.party_channels.items():
         if channel.id in info.active_voice_channels:
             await party.handle_party_emptied(mm_id, channel)
             break
 
-    # if it's a games channel
+    # games channels
     for gc_id, info in db.games_channels.items():
-        if channel.id in info.channel_owners.items():
+        if channel.id in info.channel_owners.values():
             await channel.delete()
             games_channel_deletion_callback(channel, gc_id)
 
@@ -261,7 +264,7 @@ async def process_role_message(message):
 
 def get_emoji_game_name_translations(message):
     translations = {}
-    pattern = r">* *([^ \n]+) ([^\n]+)"
+    pattern = r"> *([^ \n]+) ([^\n]+)"
     for match in re.finditer(pattern, message.content):
         expected_emoji, game_name = match.group(1,2)
         translations[expected_emoji] = game_name
@@ -280,11 +283,14 @@ def translate_emoji_game_name(message, emoji):
 ###############################################################################
 
 
-@bot.command()
+@bot.command(aliases = ["ac"])
 @is_admin()
 async def activatechannel(ctx, game_name: str,
                           max_slots: int, channel_above_id: int,
                           open_parties : str):
+    if ctx.channel.id in db.games_channels:
+        raise ChannelDoubleActivateError()
+
     if open_parties == Strings.OPEN_PARTIES:
         open_parties = True
     elif open_parties == Strings.CLOSED_PARTIES:
@@ -332,7 +338,7 @@ async def activatechannel_error(ctx, error):
 def is_me(m):
     return m.author == bot.user
 
-@bot.command()
+@bot.command(aliases = ["dc"])
 @is_admin()
 async def deactivatechannel(ctx):
     check_channel(ctx.channel)
@@ -356,7 +362,7 @@ async def deactivatechannel_error(ctx, error):
 #        if " Party #" in channel.name:
 #            await channel.delete()
 
-@bot.command()
+@bot.command(aliases = ["agc"])
 @is_admin()
 async def activategameschannel(ctx, channel_below_id: int):
     channel_below = ctx.guild.get_channel(channel_below_id)
@@ -365,6 +371,9 @@ async def activategameschannel(ctx, channel_below_id: int):
 
     if ctx.channel.id in db.games_channels:
         raise ChannelAlreadyActiveError()
+
+    if ctx.channel.id in db.party_channels:
+        raise ChannelDoubleActivateError()
 
     await ctx.message.delete()
     message = await ctx.send(f"Channel activated for side-game party creation.")
@@ -385,7 +394,7 @@ async def activategameschannel_error(ctx, error):
     await handle_error(ctx, error, error_handlers)
 
 
-@bot.command()
+@bot.command(aliases = ["dgc"])
 @is_admin()
 async def deactivategameschannel(ctx):
     if ctx.channel.id not in db.games_channels:
@@ -412,6 +421,9 @@ async def deactivategameschannel_error(ctx, error):
 ###############################################################################
 
 class ChannelAlreadyActiveError(commands.CommandError): pass
+
+
+class ChannelDoubleActivateError(commands.CommandError): pass
 
 
 class InactiveChannelError(commands.CommandError): pass
@@ -449,7 +461,10 @@ def get_default_error_handlers(ctx, command_name, command_argument_syntax=""):
         InactiveChannelError: lambda:
         ctx.send(f"The bot is not configured to use this channel. "
                  f"Admins can change that via "
-                 f"{config.BOT_CMD_PREFIX}activatechannel.")
+                 f"{config.BOT_CMD_PREFIX}activatechannel."),
+        ChannelDoubleActivateError: lambda:
+        ctx.send(f"A channel can't be activated for both party matchmaking AND "
+                 f"side games!"),
     }
 
 
@@ -469,7 +484,6 @@ def send_error(ctx, text):
 
 def check_channel(channel):
     '''Raises an InactiveChannelError if the channel is not marked as active.'''
-    db = Database.load()
     if channel.id not in db.party_channels:
         raise InactiveChannelError()
 
