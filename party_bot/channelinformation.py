@@ -35,7 +35,11 @@ class _BaseChannelInformation(persistent.Persistent):
             if c.id == self.__reference_channel_id:
                 ref_channel = (c.position, c)
 
-        sorted_vc_list = sorted(seen_vcs)
+        sorted_vc_list = sorted(seen_vcs,
+                                # It is possible for two VCs to have the same
+                                # position value (WTF?), so we use IDs as
+                                # secondary sorting key
+                                key=lambda tup: (tup[0], tup[1].id))
         ref_channel_compacted_pos = sorted_vc_list.index(ref_channel)
         return (ref_channel[1], ref_channel_compacted_pos)
 
