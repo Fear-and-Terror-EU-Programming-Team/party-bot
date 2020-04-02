@@ -1,22 +1,28 @@
 #!/usr/bin/env -S python3 -u
+
 '''
 Fear and Terror's bot for party matchmaking on Discord
 '''
+
 import asyncio
+import checks
 import config
 import discord
+import error_handling
 import party
 import re
 import scheduling
 import sys
 import transaction
 from channelinformation import PartyChannelInformation, GamesChannelInformation
-from party import Party
 from database import db
-from discord.ext import commands
 from emojis import Emojis
+from discord.ext import commands
+from party import Party
+from pprint import pprint
 from strings import Strings
 from synchronization import synchronized
+
 
 bot = commands.Bot(command_prefix=config.BOT_CMD_PREFIX)
 
@@ -70,6 +76,11 @@ async def on_raw_message_edit(payload):
 
     await message.clear_reactions()
     await process_role_message(message)
+
+
+@bot.event
+async def on_command_error(ctx, error):
+    await error_handling.handle_error(ctx, error)
 
 
 @synchronized
@@ -243,16 +254,10 @@ async def unwrap_payload(payload):
     return rp
 
 
-def is_admin():
-    async def predicate(ctx):
-        return party.is_admin(ctx.author)
-    return commands.check(predicate)
-
-
 async def process_role_message(message):
-    if not party.is_admin(message.author):
+    if not checks.is_admin(message.author):
         return # ignore non-admin message
-    if message.author is bot.user:
+    if checks.author_is_me(message):
         return # ignore bot messages
     if not message.channel.id in db.games_channels:
         return # ignore messages in non-games channels
@@ -278,13 +283,13 @@ def translate_emoji_game_name(message, emoji):
     translations = get_emoji_game_name_translations(message)
     return translations.get(emoji)
 
+
 ###############################################################################
 ## Commands
 ###############################################################################
 
-
 @bot.command(aliases = ["ac"])
-@is_admin()
+@commands.has_any_role(config.BOT_ADMIN_ROLES)
 async def activatechannel(ctx, game_name: str,
                           max_slots: int, channel_above_id: int,
                           open_parties : str):
@@ -325,21 +330,8 @@ async def activatechannel(ctx, game_name: str,
     await message.add_reaction(Emojis.TADA)
 
 
-@activatechannel.error
-async def activatechannel_error(ctx, error):
-    error_handlers = get_default_error_handlers(ctx, "activatechannel",
-                                                f"GAME_NAME "
-                                                f"MAX_SLOTS CHANNEL_ABOVE_ID "
-                                                f"({Strings.OPEN_PARTIES}|"
-                                                f"{Strings.CLOSED_PARTIES})")
-    await handle_error(ctx, error, error_handlers)
-
-
-def is_me(m):
-    return m.author == bot.user
-
 @bot.command(aliases = ["dc"])
-@is_admin()
+@commands.has_any_role(config.BOT_ADMIN_ROLES)
 async def deactivatechannel(ctx):
     check_channel(ctx.channel)
     del db.party_channels[ctx.channel.id]
@@ -349,21 +341,16 @@ async def deactivatechannel(ctx):
     scheduling.message_delayed_delete(message)
 
 
-@deactivatechannel.error
-async def deactivatechannel_error(ctx, error):
-    error_handlers = get_default_error_handlers(ctx, "deactivate", "")
-    await handle_error(ctx, error, error_handlers)
-
-
 # @bot.command()
-# @is_admin()
+# @commands.has_any_role(config.BOT_ADMIN_ROLES)
 # async def nukeparties(ctx):
 #    for channel in ctx.guild.channels:
 #        if " Party #" in channel.name:
 #            await channel.delete()
 
+
 @bot.command(aliases = ["agc"])
-@is_admin()
+@commands.has_any_role(config.BOT_ADMIN_ROLES)
 async def activategameschannel(ctx, channel_below_id: int):
     channel_below = ctx.guild.get_channel(channel_below_id)
     if channel_below is None:
@@ -383,19 +370,8 @@ async def activategameschannel(ctx, channel_below_id: int):
     db.games_channels[ctx.channel.id] = channel_info
 
 
-@activategameschannel.error
-async def activategameschannel_error(ctx, error):
-    error_handlers = get_default_error_handlers(ctx, "activategameschannel",
-                                                "CHANNEL_BELOW_ID")
-    error_handlers.update({
-        ChannelAlreadyActiveError: lambda:
-        ctx.send("Channel already activated."),
-    })
-    await handle_error(ctx, error, error_handlers)
-
-
 @bot.command(aliases = ["dgc"])
-@is_admin()
+@commands.has_any_role(config.BOT_ADMIN_ROLES)
 async def deactivategameschannel(ctx):
     if ctx.channel.id not in db.games_channels:
         raise InactiveChannelError()
@@ -405,87 +381,6 @@ async def deactivategameschannel(ctx):
     scheduling.message_delayed_delete(message)
 
     del db.games_channels[ctx.channel.id]
-
-
-@deactivategameschannel.error
-async def deactivategameschannel_error(ctx, error):
-    error_handlers = get_default_error_handlers(ctx, "deactivategameschannel")
-    error_handlers.update({
-        InactiveChannelError: lambda:
-        ctx.send(f"The bot is not configured to use this channel.")
-    })
-    await handle_error(ctx, error, error_handlers)
-
-###############################################################################
-## Command error handling
-###############################################################################
-
-class ChannelAlreadyActiveError(commands.CommandError): pass
-
-
-class ChannelDoubleActivateError(commands.CommandError): pass
-
-
-class InactiveChannelError(commands.CommandError): pass
-
-
-class PartyAlreadyStartedError(commands.CommandError): pass
-
-
-class NoActivePartyError(commands.CommandError): pass
-
-
-async def handle_error(ctx, error, error_handlers):
-    for error_type, handler in error_handlers.items():
-        if isinstance(error, error_type):
-            await handler()
-            return
-
-    await send_error_unknown(ctx)
-    raise error
-
-
-def get_default_error_handlers(ctx, command_name, command_argument_syntax=""):
-    '''Generate default error handlers including ones for bad argument syntax
-    and invalid channel.
-    '''
-    usage_help = lambda: send_usage_help(ctx, command_name,
-                                         command_argument_syntax)
-    return {
-        commands.errors.MissingRequiredArgument: usage_help,
-        commands.errors.BadArgument: usage_help,
-        commands.MissingRole: lambda:
-        ctx.send("Insufficient rank permissions."),
-        commands.errors.CheckFailure: lambda:
-        ctx.send("Insufficient rank permissions."),
-        InactiveChannelError: lambda:
-        ctx.send(f"The bot is not configured to use this channel. "
-                 f"Admins can change that via "
-                 f"{config.BOT_CMD_PREFIX}activatechannel."),
-        ChannelDoubleActivateError: lambda:
-        ctx.send(f"A channel can't be activated for both party matchmaking AND "
-                 f"side games!"),
-    }
-
-
-def send_usage_help(ctx, function_name, argument_structure):
-    return ctx.send(f"Usage: `{config.BOT_CMD_PREFIX}{function_name} "
-                    f"{argument_structure}`")
-
-
-def send_error_unknown(ctx):
-    return send_error(ctx, f"Unknown error. Tell someone from the programming"
-                           f" team to check the logs.")
-
-
-def send_error(ctx, text):
-    return ctx.send("[ERROR] " + text)
-
-
-def check_channel(channel):
-    '''Raises an InactiveChannelError if the channel is not marked as active.'''
-    if channel.id not in db.party_channels:
-        raise InactiveChannelError()
 
 
 ###############################################################################

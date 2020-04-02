@@ -1,4 +1,5 @@
 import asyncio
+import checks
 import config
 import discord
 import scheduling
@@ -191,7 +192,7 @@ async def close_party(rp):
     party = await Party.from_party_message(rp.message)
     channel = party.channel
     if party.leader != rp.member \
-            and not is_admin(rp.member):
+            and not checks.is_admin(rp.member):
         await rp.message.remove_reaction(Emojis.NO_ENTRY_SIGN, rp.member)
         return
     if rp.member != party.leader:
@@ -251,10 +252,4 @@ def _user_snowflake_to_id(snowflake):
         return int(snowflake[3:-1])
     else:
         return int(snowflake[2:-1])
-
-
-def is_admin(user):
-    return isinstance(user, discord.Member) and \
-        any([role.id in config.BOT_ADMIN_ROLES for role in user.roles])
-
 
