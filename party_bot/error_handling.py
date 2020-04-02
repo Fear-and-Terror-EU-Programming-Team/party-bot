@@ -13,9 +13,6 @@ from discord.ext import commands
 class ChannelAlreadyActiveError(commands.CommandError): pass
 
 
-class ChannelDoubleActivateError(commands.CommandError): pass
-
-
 class InactiveChannelError(commands.CommandError): pass
 
 
@@ -65,13 +62,11 @@ async def handle_error(ctx : commands.Context,
         return
 
     if isinstance(error, ChannelAlreadyActiveError):
-        await ctx.send(f"{ctx.author.mention} The requested feature is"
-                       f"already activated for this channel.")
-        return
-
-    if isinstance(error, ChannelDoubleActivateError):
-        ctx.send(f"{ctx.author.mention} A channel can't be activated for "
-                 f"multiple features!")
+        await ctx.send(f"{ctx.author.mention} The requested feature or "
+                       f"another feature of this bot has already activated "
+                       f"for this channel. "
+                       f"You must deactivate that feature before activating "
+                       f"this one.")
         return
 
     # Default catch-all
