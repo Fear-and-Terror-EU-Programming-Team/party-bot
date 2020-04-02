@@ -1,7 +1,21 @@
+'''
+This module deals with the handling of emoji reactions in channels for which
+one of the bot's features is enabled.
+
+Most of the side games voice channel feature is implemented here.
+'''
+
 import checks
+import config
 import discord
 import party
+import re
+import scheduling
+import transaction
+import typing
 from database import db
+from emojis import Emojis
+from reaction_payload import ReactionPayload, unwrap_payload
 from synchronization import synchronized
 
 # handle emoji reactions being added / deleted
@@ -64,7 +78,7 @@ async def handle_react(payload : discord.RawReactionActionEvent,
         if added and add is not None:
             keep_reaction = await add(rp)
         elif not added and remove is not None:
-            keep_reaction = await remove(rp)
+            await remove(rp)
 
     if checks.is_side_games_channel(rp.channel) and added:
         await handle_react_side_games(rp)
@@ -148,36 +162,6 @@ def side_games_deletion_callback(voice_channel, games_channel_id):
             del channel_info.channel_owners[owner_id]
             break
 
-
-class ReactionPayload():
-    '''
-    Object containing context information for an emoji reaction, such as
-    the channel, the member that made the reaction, and the emoji itself.
-
-    This is used to convert the payload object supplied to on_raw_reaction_add
-    etc. into a more usable form containing Discord objects instead of IDs.
-
-    Do not create a ReactionPayload object manually.
-    Instead, use the `unwrap_payload` function.
-    '''
-    # this might be a bit heavy on the API
-    async def _init(self, payload):
-        self.guild = bot.get_guild(payload.guild_id)
-        self.member = await self.guild.fetch_member(payload.user_id)
-        self.emoji = payload.emoji
-        self.channel = bot.get_channel(payload.channel_id)
-        self.message = await self.channel.fetch_message(payload.message_id)
-
-
-async def unwrap_payload(payload):
-    '''
-    Converts a payload object supplied to `on_raw_reaction_add` etc. into a
-    more useful `ReactionPayload` object containing Discord objects instead of
-    IDs.
-    '''
-    rp = ReactionPayload()
-    await rp._init(payload)
-    return rp
 
 async def add_first_emojis(message):
     '''

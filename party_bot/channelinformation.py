@@ -1,3 +1,8 @@
+'''
+This module contains the class definitions of the database objects that are
+used to describe channels in which any of the bot's features are activated.
+'''
+
 import database
 import discord
 import persistent

@@ -1,3 +1,7 @@
+'''
+This module implements most of the party matchmaking feature.
+'''
+
 import asyncio
 import checks
 import config
@@ -5,6 +9,7 @@ import discord
 import scheduling
 from database import db
 from emojis import Emojis
+from reaction_payload import ReactionPayload
 from strings import Strings
 
 
@@ -23,7 +28,12 @@ class Party():
         self.slots_left = slots_left
         self.members = members
 
-    async def from_party_message(message):
+    async def from_party_message(message : discord.Message) -> Party:
+        '''
+        Creates a Party object from a party message, parsing all embed fields
+        to gather the necessary information.
+        '''
+
         embed = message.embeds[0]
         channel = message.channel
         guild = message.guild
@@ -45,7 +55,13 @@ class Party():
 
         return Party(channel, leader, slots_left, members)
 
-    def to_embed(self):
+    def to_embed(self) -> discord.Embed:
+        '''
+        Creates a Discord embed used to represent the party.
+        Messages containing this embed are called "party messages" and can be
+        used to reconstruct this party object using `from_party_message`.
+        '''
+
         embed = discord.Embed.from_dict({
             "color": 0x00FF00,
             "description": f"{self.leader.mention} has just launched a party!\n"
@@ -68,18 +84,54 @@ class Party():
 
         return embed
 
-    async def add_member(self, user, message):
+    async def add_member(self,
+                         user : discord.Member,
+                         party_message : discord.Message) -> None:
+        '''
+        Adds a member to this party, updating this object and the party
+        message.
+
+
+        Note that this function does not check whether the party is full or
+        whether the member is already part of the party.
+        It also does not trigger party creation when the amount of free slots
+        reach zero.
+        '''
         self.members.add(user)
         self.slots_left -= 1
-        await message.edit(embed=self.to_embed())
+        await party_message.edit(embed=self.to_embed())
 
-    async def remove_member(self, user, message):
+    async def remove_member(self,
+                            user : discord.Member,
+                            party_message : discord.Message) -> None:
+        '''
+        Removes a member from this party, updating this object and the party
+        message.
+
+        Note that this function does not check whether whether the member is
+        part of the party.
+        If a non-party-member is removed from the party using this function,
+        then `slots_left` will have an invalid value.
+        '''
         self.members.remove(user)
         self.slots_left += 1
-        await message.edit(embed=self.to_embed())
+        await party_message.edit(embed=self.to_embed())
 
 
-async def add_member_emoji_handler(rp):
+async def add_member_emoji_handler(rp : ReactionPayload) -> bool:
+    '''
+    Emoji handler that implements the party join feature.
+
+    Will add a member to the party and trigger voice channel creation when the
+    party is full.
+
+    If the member that reacted is the party leader, the emoji is simply removed
+    and no further action is taken.
+
+    If the member is already part of another party, either as member or leader,
+    an error message is printed and the emoji is removed.
+    '''
+
     party = await Party.from_party_message(rp.message)
     message = rp.message
     channel = rp.channel
@@ -102,21 +154,44 @@ async def add_member_emoji_handler(rp):
     return True # keep reaction
 
 
-async def remove_member_emoji_handler(rp):
+async def remove_member_emoji_handler(rp : ReactionPayload) -> None:
+    '''
+    Emoji handler that implements the party leave feature.
+
+    Will remove a member from the party.
+
+    Since emoji reactions are handled sequentially but not in FIFO order, there
+    is a small chance that the leave event is handled before the join event.
+    In that case, the leave event is silently ignored.
+    Note that this will cause the member to be part of the party.
+    Since that member probably can't un-react without reacting first, the party
+    has to be closed and re-opened to fix it.
+
+    TODO: ensure FIFO order for the synchronization lock
+    '''
+
     party = await Party.from_party_message(rp.message)
     channel = rp.channel
     channel_info = db.party_channels[channel.id]
-    if rp.member not in party.members:
-        # This shouldn't happen. If it does, ignore it
-        return
-    if rp.member == party.leader:  # leader can't leave
+
+    # This shouldn't happen. If it does, ignore it
+    # See function documentation above
+    if rp.member not in party.members \
+            or rp.member == party.leader:
         return
 
     await party.remove_member(rp.member, rp.message)
     channel_info.clear_party_message_of_user(rp.member)
 
 
-async def handle_full_party(party, party_message):
+async def handle_full_party(party : Party,
+                            party_message : discord.Message) -> None:
+    '''
+    Called by `Party.add_member` when a party reaches zero open slots.
+    Deletes the party message and creates a party voice channel.
+    Will inform all party members by posting a message in the party matchmaking
+    channel.
+    '''
     channel = party_message.channel
     guild = party_message.guild
     channel_info = db.party_channels[channel.id]
@@ -176,7 +251,15 @@ async def handle_full_party(party, party_message):
     scheduling.message_delayed_delete(message)
 
 
-async def force_start_party(rp):
+async def force_start_party(rp : ReactionPayload) -> None:
+    '''
+    Emoji handler that implements the party force start feature.
+
+    If the reacting member is not the party leader or the party has no members
+    (excluding the party leader), the emoji is removed and no further action is
+    taken.
+    '''
+
     party = await Party.from_party_message(rp.message)
     # only leader can start the party
     # and don't start empty parties
@@ -188,7 +271,19 @@ async def force_start_party(rp):
     await handle_full_party(party, rp.message)
 
 
-async def close_party(rp):
+async def close_party(rp : ReactionPayload) -> None:
+    '''
+    Emoji handler that implements the party close feature.
+
+    If the reacting member is not the party leader or a bot admin as specified
+    in `config.BOT_ADMIN_ROLES`, the emoji is removed and no further action is
+    taken.
+
+    Otherwise, the party message the party affiliations (membership,
+    leadership) are deleted and an appropriate message is posted to the party
+    matchmaking channel.
+    '''
+
     party = await Party.from_party_message(rp.message)
     channel = party.channel
     if party.leader != rp.member \
@@ -208,7 +303,14 @@ async def close_party(rp):
     scheduling.message_delayed_delete(message)
 
 
-async def start_party(rp):
+async def start_party(rp : ReactionPayload) -> None:
+    '''
+    Emoji handler that implements the party creation feature.
+
+    If the reacting member is already part of another party, either as member
+    or leader, an error message is printed and the emoji is removed.
+    '''
+
     await rp.message.remove_reaction(Emojis.TADA, rp.member)
     channel = rp.channel
     if channel.id not in db.party_channels:
@@ -237,7 +339,15 @@ async def start_party(rp):
     channel_info.set_party_message_of_user(rp.member, message)
 
 
-async def handle_party_emptied(matchmaking_channel_id, voice_channel):
+async def handle_party_emptied(matchmaking_channel_id : int,
+                               voice_channel : discord.VoiceChannel) -> None:
+    '''
+    Called when a party voice channel emptied out.
+
+    Will delete channel if it is older than the grace period defined in
+    `config.PARTY_CHANNEL_GRACE_PERIOD_SECONDS`.
+    '''
+
     # grace period for new channels
     if voice_channel.id in scheduling.channel_ids_grace_period:
         return
@@ -247,7 +357,11 @@ async def handle_party_emptied(matchmaking_channel_id, voice_channel):
         .active_voice_channels.remove(voice_channel.id)
 
 
-def _user_snowflake_to_id(snowflake):
+def _user_snowflake_to_id(snowflake : str) -> int:
+    '''
+    Extracts the user ID from a user mention in snowflake notation.
+    '''
+
     if snowflake[2] == "!":
         return int(snowflake[3:-1])
     else:

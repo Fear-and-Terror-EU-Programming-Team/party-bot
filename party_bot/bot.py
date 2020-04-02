@@ -8,6 +8,7 @@ import asyncio
 import checks
 import config
 import discord
+import emoji_handling
 import error_handling
 import party
 import re
@@ -43,6 +44,9 @@ async def on_ready():
 @bot.event
 async def on_message(message):
     await bot.process_commands(message)
+
+    # Add first reactions to menu messages (see `activate_side_games`).
+    # This is only relevant for the side games feature
     await emoji_handling.add_first_emojis(message)
 
 
@@ -58,33 +62,22 @@ async def on_raw_reaction_remove(payload):
 
 @bot.event
 async def on_raw_message_edit(payload):
-    # TODO change to following once discord.py 1.3.0 is released
-    #message = await bot.get_channel(payload.channel_id) \
-    #    .fetch_message(payload.message_id)
-    #if payload.channel_id not in db.games_channels:
-    #    return # ignore message outside of games channels
-
-    message = None
-    for c_id in db.games_channels.keys():
-        c = bot.get_channel(c_id)
-        try:
-            message = await c.fetch_message(payload.message_id)
-            break
-        except discord.errors.NotFound as e:
-            pass
-
-    if message is None:
-        return # message not in active games channel
+    '''
+    Message edit handler that updates the bot's emoji reactions when a menu
+    message (see `activate_side_games`) is edited.
+    '''
+    message = await bot.get_channel(payload.channel_id) \
+        .fetch_message(payload.message_id)
+    if payload.channel_id not in db.games_channels:
+        return # ignore message outside of side games channels
 
     await message.clear_reactions()
-    await add_first_emojis(message)
+    await emoji_handling.add_first_emojis(message)
 
 
 @bot.event
 async def on_command_error(ctx, error):
     await error_handling.handle_error(ctx, error)
-
-
 
 
 @bot.event
@@ -115,11 +108,10 @@ async def on_voice_state_update(member, before, after):
     for gc_id, info in db.games_channels.items():
         if channel.id in info.channel_owners.values():
             await channel.delete()
-            games_channel_deletion_callback(channel, gc_id)
-
-
-
-
+            # TODO: remove callback altogether?
+            # Instead, we could simply update owner tracking information
+            # whenever someone wants to create a new channel
+            emoji_handling.side_games_deletion_callback(channel, gc_id)
 
 
 ###############################################################################
@@ -154,7 +146,7 @@ async def activate_party(ctx, game_name: str,
 
     if not checks.is_channel_inactive(ctx.channel) \
             and not checks.is_party_channel(ctx.channel):
-        raise ChannelDoubleActivateError()
+        raise error_handling.ChannelAlreadyActiveError()
 
     if open_parties == Strings.OPEN_PARTIES:
         open_parties = True
@@ -194,15 +186,15 @@ async def activate_party(ctx, game_name: str,
 
 @bot.command(aliases = ["dp"])
 @commands.has_any_role(config.BOT_ADMIN_ROLES)
+@commands.check(checks.check_party_channel)
 async def deactivate_party(ctx):
     '''
     Deactivates the party matchmaking feature for this channel, removing the
     party creation menu.
     '''
-    check_channel(ctx.channel)
     del db.party_channels[ctx.channel.id]
     await ctx.message.delete()
-    await ctx.channel.purge(limit=100, check=is_me)
+    await ctx.channel.purge(limit=100, check=checks.is_me)
     message = await ctx.send(f"Party matchmaking disabled for this channel.")
     scheduling.message_delayed_delete(message)
 
@@ -217,7 +209,7 @@ async def deactivate_party(ctx):
 
 @bot.command(aliases = ["asg"])
 @commands.has_any_role(config.BOT_ADMIN_ROLES)
-@commands.check(errors.check_channel_inactive)
+@commands.check(checks.check_channel_inactive)
 async def activate_side_games(ctx, channel_below_id: int):
     '''
     Activates the side game voice channel feature for this channel.
@@ -274,7 +266,7 @@ async def activate_side_games(ctx, channel_below_id: int):
 
 @bot.command(aliases = ["dsg"])
 @commands.has_any_role(config.BOT_ADMIN_ROLES)
-@commands.check(errors.check_side_games_channel)
+@commands.check(checks.check_side_games_channel)
 async def deactivate_side_games(ctx):
     '''
     Deactivates the side game voice channel feature for this channel.

@@ -1,3 +1,11 @@
+'''
+This module implements the persistency necessary to preserve channel
+configurations across bot restarts.
+
+Importing this module will create / load the database and populate the `db`
+attribute.
+'''
+
 import config
 import persistent
 import transaction

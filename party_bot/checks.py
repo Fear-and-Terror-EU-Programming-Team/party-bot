@@ -3,15 +3,17 @@ This module includes various check functions that simplify common checks, such
 as testing whether a user is a bot administrator.
 
 The checks in this module come in two variants:
-- Functions that return True when the check passes and raise an appropriate
-  subclass of CommandError otherwise.
+- Disord command predicate-style checks that return True when the check passes
+  and raise an appropriate subclass of CommandError otherwise.
   These functions are prefixed with `check_`, such as `check_party_enabled`.
 - Functions that return True when the check passes and False otherwise.
   These functions do *not* have the `check_` prefix.
 '''
 
 import discord
+import error_handling
 from database import db
+from discord.ext import commands
 from enum import enum
 
 
@@ -66,13 +68,13 @@ def is_channel_inactive(channel : discord.TextChannel) -> bool:
     return get_active_feature(channel) == ActivationState.INACTIVE
 
 
-def check_channel_inactive(channel : discord.TextChannel) -> bool:
+def check_channel_inactive(ctx : commands.Context) -> bool:
     '''
     Raises a ChannelAlreadyActiveError if the channel is activated for any of
     the bot's features.
     '''
-    if get_active_feature(channel) != ActivationState.INACTIVE:
-        raise errors.ChannelAlreadyActiveError()
+    if get_active_feature(ctx.channel) != ActivationState.INACTIVE:
+        raise error_handling.ChannelAlreadyActiveError()
     else:
         return True
 
@@ -84,13 +86,13 @@ def is_party_channel(channel : discord.TextChannel) -> bool:
     return get_active_feature(channel) == ActivationState.PARTY
 
 
-def check_party_channel(channel : discord.TextChannel) -> bool:
+def check_party_channel(ctx : commands.Context) -> bool:
     '''
     Raises an InactiveChannelError if the channel is not activated for the
     party feature.
     '''
-    if get_active_feature(channel) != ActivationState.PARTY:
-        raise errors.InactiveChannelError()
+    if get_active_feature(ctx.channel) != ActivationState.PARTY:
+        raise error_handling.InactiveChannelError()
     else:
         return True
 
@@ -103,12 +105,12 @@ def is_side_games_channel(channel : discord.TextChannel) -> bool:
     return get_active_feature(channel) == ActivationState.SIDE_GAMES
 
 
-def check_side_games_channel(channel : discord.TextChannel) -> bool:
+def check_side_games_channel(ctx : commands.Context) -> bool:
     '''
     Raises an InactiveChannelError if the channel is not activated for the
     side games voice channel feature.
     '''
-    if get_active_feature(channel) != ActivationState.SIDE_GAMES:
-        raise errors.InactiveChannelError()
+    if get_active_feature(ctx.channel) != ActivationState.SIDE_GAMES:
+        raise error_handling.InactiveChannelError()
     else:
         return True
