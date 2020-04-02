@@ -2,6 +2,9 @@
 This module implements most of the party matchmaking feature.
 '''
 
+# necessary for typing factory methods
+from __future__ import annotations
+
 import asyncio
 import checks
 import config

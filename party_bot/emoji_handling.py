@@ -149,6 +149,7 @@ async def handle_react_side_games(rp : ReactionPayload) -> None:
 def side_games_deletion_callback(voice_channel, games_channel_id):
     '''
     Callback for automatic deletion of side games channels.
+
     Users are only allowed to have a limited amount of side games voice channel
     at the same time.
     This callback ensures that auto-deleted channels no longer count towards
@@ -176,7 +177,7 @@ async def add_first_emojis(message):
         return # ignore non-admin message
     if checks.author_is_me(message):
         return # ignore bot messages
-    if not checks.is_side_games_channel(message):
+    if not checks.is_side_games_channel(message.channel):
         return # ignore messages in non-games channels
 
     translations = get_emoji_game_name_translations(message)

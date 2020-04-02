@@ -7,6 +7,7 @@ This module defines
   This error handler should be called from `bot.on_command_error`.
 '''
 
+import traceback
 from discord.ext import commands
 
 
@@ -45,31 +46,38 @@ async def handle_error(ctx : commands.Context,
             return
 
     # Permission errors
-    if isinstance(error, commands.MissingRole):
-        await ctx.send(f"{ctx.author.mention} You do not the role(s) required "
-                       f"to use this command.")
+    if isinstance(error, commands.MissingRole) \
+            or isinstance(error, commands.MissingAnyRole):
+        await ctx.send(f"{ctx.author.mention} You do not have the role(s) "
+                       f"required to use this command.")
         return
 
     if isinstance(error, commands.CheckFailure):
         await ctx.send(f"{ctx.author.mention} Command is not applicable or "
-                       f"lack the permission to use it.")
+                       f"you lack the permission to use it.")
         return
 
     # State errors
     if isinstance(error, InactiveChannelError):
-        await ctx.send(f"{ctx.author.mention} The requested feature is not"
+        await ctx.send(f"{ctx.author.mention} The requested feature is not "
                        f"activated for this channel.")
         return
 
     if isinstance(error, ChannelAlreadyActiveError):
         await ctx.send(f"{ctx.author.mention} The requested feature or "
-                       f"another feature of this bot has already activated "
-                       f"for this channel. "
+                       f"another feature of this bot has already been "
+                       f"activated for this channel. "
                        f"You must deactivate that feature before activating "
                        f"this one.")
         return
 
+    # Unknown command
+    if isinstance(error, commands.CommandNotFound):
+        return # ignore
+
+
     # Default catch-all
-    ctx.send(f"{ctx.author.mention} An unknown error occurred. "
+    await ctx.send(f"{ctx.author.mention} An unknown error occurred. "
              f"Please contact the programming team and tell us what you did "
              f"to produce this error.")
+    traceback.print_exception(type(error), error, error.__traceback__)

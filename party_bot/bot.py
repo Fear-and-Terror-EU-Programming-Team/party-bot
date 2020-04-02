@@ -119,7 +119,7 @@ async def on_voice_state_update(member, before, after):
 ###############################################################################
 
 @bot.command(aliases = ["ap"])
-@commands.has_any_role(config.BOT_ADMIN_ROLES)
+@commands.has_any_role(*config.BOT_ADMIN_ROLES)
 async def activate_party(ctx, game_name: str,
                           max_slots: int, channel_above_id: int,
                           open_parties : str):
@@ -138,7 +138,7 @@ async def activate_party(ctx, game_name: str,
             Note that anyone with the "Move Members" permission can always
             join party voice channels.
 
-    To deactive the party matchmaking feature and remove the party creation
+    To deactivate the party matchmaking feature and remove the party creation
     menu, use the `deactivate_party` command.
 
     To edit the current configuration, simply run this command again.
@@ -173,7 +173,7 @@ async def activate_party(ctx, game_name: str,
                                            channel_above, open_parties)
 
     db.party_channels[ctx.channel.id] = channel_info
-    await ctx.channel.purge(limit=100, check=is_me)
+    await ctx.channel.purge(limit=100, check=checks.author_is_me)
     embed = discord.Embed.from_dict({
         "title": "Game: %s" % game_name,
         "color": 0x0000FF,
@@ -185,7 +185,7 @@ async def activate_party(ctx, game_name: str,
 
 
 @bot.command(aliases = ["dp"])
-@commands.has_any_role(config.BOT_ADMIN_ROLES)
+@commands.has_any_role(*config.BOT_ADMIN_ROLES)
 @commands.check(checks.check_party_channel)
 async def deactivate_party(ctx):
     '''
@@ -194,13 +194,13 @@ async def deactivate_party(ctx):
     '''
     del db.party_channels[ctx.channel.id]
     await ctx.message.delete()
-    await ctx.channel.purge(limit=100, check=checks.is_me)
+    await ctx.channel.purge(limit=100, check=checks.author_is_me)
     message = await ctx.send(f"Party matchmaking disabled for this channel.")
     scheduling.message_delayed_delete(message)
 
 
 # @bot.command()
-# @commands.has_any_role(config.BOT_ADMIN_ROLES)
+# @commands.has_any_role(*config.BOT_ADMIN_ROLES)
 # async def nukeparties(ctx):
 #    for channel in ctx.guild.channels:
 #        if " Party #" in channel.name:
@@ -208,7 +208,7 @@ async def deactivate_party(ctx):
 
 
 @bot.command(aliases = ["asg"])
-@commands.has_any_role(config.BOT_ADMIN_ROLES)
+@commands.has_any_role(*config.BOT_ADMIN_ROLES)
 @commands.check(checks.check_channel_inactive)
 async def activate_side_games(ctx, channel_below_id: int):
     '''
@@ -230,9 +230,9 @@ async def activate_side_games(ctx, channel_below_id: int):
 
         Menu entries are lines in a menu message that have the following
         format:
-        ```
+        ``
         > EMOJI SIDE_GAME_NAME
-        ```
+        ``
         `EMOJI` must be either a Unicode emoji or a custom emoji.
         `SIDE_GAME_NAME` must be a sequence of any characters except a
         line-break.
@@ -243,12 +243,12 @@ async def activate_side_games(ctx, channel_below_id: int):
         menus per channel.
 
         Example:
-            ```
+            ``
             > :map: Strategy Games
             > :Minecraft: Minecraft
-            ```
+            ``
 
-    To deactive this feature, use the `deactivate_party` command.
+    To deactivate this feature, use the `deactivate_party` command.
     '''
 
     channel_below = ctx.guild.get_channel(channel_below_id)
@@ -265,7 +265,7 @@ async def activate_side_games(ctx, channel_below_id: int):
 
 
 @bot.command(aliases = ["dsg"])
-@commands.has_any_role(config.BOT_ADMIN_ROLES)
+@commands.has_any_role(*config.BOT_ADMIN_ROLES)
 @commands.check(checks.check_side_games_channel)
 async def deactivate_side_games(ctx):
     '''

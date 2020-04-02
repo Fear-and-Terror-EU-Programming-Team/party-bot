@@ -10,11 +10,12 @@ The checks in this module come in two variants:
   These functions do *not* have the `check_` prefix.
 '''
 
+import config
 import discord
 import error_handling
 from database import db
 from discord.ext import commands
-from enum import enum
+from enum import Enum
 
 
 
@@ -22,7 +23,7 @@ def author_is_me(message : discord.Message) -> bool:
     '''
     Returns true if and only if the author of the message is the bot user.
     '''
-    return m.author == bot.user
+    return message.author == config.bot.user
 
 
 def is_admin(member : discord.Member) -> bool:
@@ -30,10 +31,10 @@ def is_admin(member : discord.Member) -> bool:
     Returns true if and only if the user has any of the admin roles specified
     in config.BOT_ADMIN_ROLES.
     '''
-    return any([role.id in config.BOT_ADMIN_ROLES for role in user.roles])
+    return any([role.id in config.BOT_ADMIN_ROLES for role in member.roles])
 
 
-class ActivationState(enum):
+class ActivationState(Enum):
     '''
     Enum of possible values returned by `get_active_feature`.
     '''
@@ -55,7 +56,7 @@ def get_active_feature(channel : discord.TextChannel) -> ActivationState:
     '''
     if channel.id in db.party_channels:
         return ActivationState.PARTY
-    elif ctx.channel.id in db.games_channels:
+    elif channel.id in db.games_channels.keys():
         return ActivationState.SIDE_GAMES
     else:
         return ActivationState.INACTIVE
