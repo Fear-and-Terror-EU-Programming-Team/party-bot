@@ -133,7 +133,7 @@ async def activate_party(ctx, game_name: str,
         max_slots (int): Maximum amount of players per party.
         channel_above_id (int): The ID of the voice channel below which the
             party voice channels will be created.
-        open_parties (str): Either `OPEN_PARTIES` or `CLOSE_PARTIES`.
+        open_parties (str): Either OPEN_PARTIES or CLOSED_PARTIES.
             Determines whether non-party members can join the voice chat.
             Note that anyone with the "Move Members" permission can always
             join party voice channels.
