@@ -6,6 +6,7 @@ Importing this module will create / load the database and populate the `db`
 attribute.
 '''
 
+import BTrees
 import config
 import persistent
 import transaction
@@ -18,6 +19,7 @@ class _Database(persistent.Persistent):
     def __init__(self):
         self.party_channels = persistent.mapping.PersistentMapping()
         self.games_channels = persistent.mapping.PersistentMapping()
+        self.event_channels = BTrees.IIBTree.IITreeSet()
 
 
 sys.stdout.write("Starting database...")

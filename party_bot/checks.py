@@ -56,7 +56,7 @@ def get_active_feature(channel : discord.TextChannel) -> ActivationState:
     '''
     if channel.id in db.party_channels:
         return ActivationState.PARTY
-    elif channel.id in db.games_channels.keys():
+    elif channel.id in db.games_channels:
         return ActivationState.SIDE_GAMES
     else:
         return ActivationState.INACTIVE

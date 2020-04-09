@@ -11,6 +11,7 @@ import discord
 import party
 import re
 import scheduling
+import sys
 import transaction
 import typing
 from database import db
@@ -180,12 +181,12 @@ async def add_first_emojis(message):
     if not checks.is_side_games_channel(message.channel):
         return # ignore messages in non-games channels
 
-    translations = get_emoji_game_name_translations(message)
+    translations = get_emoji_side_game_translations(message)
     for emoji in translations.keys():
         await message.add_reaction(emoji)
 
 
-def get_emoji_game_name_translations(
+def get_emoji_side_game_translations(
     message: discord.Message) -> typing.Dict[str, str]:
     '''
     Scans the message for menu entries (see `activate_side_games` command)
@@ -202,6 +203,24 @@ def get_emoji_game_name_translations(
     return translations
 
 
+def get_emoji_event_channels_translations(
+    message: discord.Message) -> typing.Dict[str, typing.Tuple[str, int]]:
+    '''
+    Scans the message for event menu entries (see `activate_event_channel`
+    command) and returns a dict that contains all mapping from emojis to game
+    names and channel_below_ids.
+    Note that the dict contains the emojis in their string representation (as
+    returned by `str(emoji)`).
+    '''
+
+    translations = {}
+    pattern = r"> *([^ \n]+) ([^\n]+) \[Above \"([^ \"\n]+)\"]"
+    for match in re.finditer(pattern, message.content):
+        expected_emoji, game_name, channel_below_id = match.group(1,2,3)
+        translations[expected_emoji] = (game_name, channel_below_id)
+    return translations
+
+
 def translate_emoji_game_name(message : discord.Message,
                               emoji : discord.Emoji) -> typing.Optional[str]:
     '''
@@ -213,5 +232,5 @@ def translate_emoji_game_name(message : discord.Message,
     emoji = str(emoji)
 
     # get all emoji-to-role translations by parsing the message
-    translations = get_emoji_game_name_translations(message)
+    translations = get_emoji_side_game_translations(message)
     return translations.get(emoji)
