@@ -214,7 +214,7 @@ def get_emoji_event_channels_translations(
     '''
 
     translations = {}
-    pattern = r"> *([^ \n]+) ([^\n]+) \[Above \"([^ \"\n]+)\"]"
+    pattern = r'> *([^ \n]+) ([^\n]+) \[Above "([^\n]+)"\]'
     for match in re.finditer(pattern, message.content):
         expected_emoji, game_name, channel_below_id = match.group(1,2,3)
         translations[expected_emoji] = (game_name, channel_below_id)
