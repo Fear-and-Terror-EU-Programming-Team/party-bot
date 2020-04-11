@@ -19,7 +19,7 @@ class _Database(persistent.Persistent):
     def __init__(self):
         self.party_channels = persistent.mapping.PersistentMapping()
         self.games_channels = persistent.mapping.PersistentMapping()
-        self.event_channels = BTrees.IIBTree.IITreeSet()
+        self.event_channels = BTrees.OOBTree.OOSet()
 
 
 sys.stdout.write("Starting database...")

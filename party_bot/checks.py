@@ -48,6 +48,9 @@ class ActivationState(Enum):
     # Channel is activated for side game channel creation
     SIDE_GAMES = 2
 
+    # Channel is activated for event channel creation
+    EVENT = 3
+
 
 def get_active_feature(channel : discord.TextChannel) -> ActivationState:
     '''
@@ -58,6 +61,8 @@ def get_active_feature(channel : discord.TextChannel) -> ActivationState:
         return ActivationState.PARTY
     elif channel.id in db.games_channels:
         return ActivationState.SIDE_GAMES
+    elif channel.id in db.event_channels:
+        return ActivationState.EVENT
     else:
         return ActivationState.INACTIVE
 
@@ -112,6 +117,25 @@ def check_side_games_channel(ctx : commands.Context) -> bool:
     side games voice channel feature.
     '''
     if get_active_feature(ctx.channel) != ActivationState.SIDE_GAMES:
+        raise error_handling.InactiveChannelError()
+    else:
+        return True
+
+
+def is_event_channel(channel: discord.TextChannel) -> bool:
+    '''
+    Return True if and only if the channel is activated for the event
+    voice channel feature.
+    '''
+    return get_active_feature(channel) == ActivationState.EVENT
+
+
+def check_event_channel(ctx : commands.Context) -> bool:
+    '''
+    Raises an InactiveChannelError if the channel is not activated for the
+    event voice channel feature.
+    '''
+    if get_active_feature(ctx.channel) != ActivationState.EVENT:
         raise error_handling.InactiveChannelError()
     else:
         return True

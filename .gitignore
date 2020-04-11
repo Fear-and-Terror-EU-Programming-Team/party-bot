@@ -203,3 +203,4 @@ fabric.properties
 # Project specific ignores
 *.fs*
 *.sqlite
+.idea

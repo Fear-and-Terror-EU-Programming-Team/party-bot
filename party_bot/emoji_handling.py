@@ -5,6 +5,7 @@ one of the bot's features is enabled.
 Most of the side games voice channel feature is implemented here.
 '''
 
+import channelinformation
 import checks
 import config
 import discord
@@ -15,6 +16,7 @@ import sys
 import transaction
 import typing
 from database import db
+from discord.utils import get
 from emojis import Emojis
 from reaction_payload import ReactionPayload, unwrap_payload
 from synchronization import synchronized
@@ -85,6 +87,10 @@ async def handle_react(payload : discord.RawReactionActionEvent,
         await handle_react_side_games(rp)
         keep_reaction = False
 
+    if checks.is_event_channel(rp.channel) and added:
+        await handle_react_event_channel(rp)
+        keep_reaction = False
+
     if not keep_reaction:
         try:
             await rp.message.remove_reaction(rp.emoji, rp.member)
@@ -147,6 +153,49 @@ async def handle_react_side_games(rp : ReactionPayload) -> None:
     return # will always remove emoji reaction
 
 
+async def handle_react_event_channel(rp: ReactionPayload) -> None:
+    '''
+    Reaction handler for the side games voice channel feature.
+    '''
+    translation_tuple = translate_emoji_event_channels(rp.message, rp.emoji)
+    if translation_tuple is None:
+        return # unknown emoji, ignore reaction
+
+    game_name, channel_below_name = translation_tuple
+
+    try:
+        channel_below_id = discord.utils.get(rp.guild.voice_channels, name=channel_below_name).id
+    except discord.NotFound:
+        message = await rp.channel.send(f"Channel {channel_below_name} not found.")
+        scheduling.message_delayed_delete(message)
+        return
+
+    channel_below, channel_below_position = \
+            await channelinformation.fetch_reference_channel(channel_below_id, rp.guild)
+    category = rp.guild.get_channel(channel_below.category_id)
+
+    counter = 1
+    for channel in rp.guild.voice_channels:
+        if channel.name.startswith(f"{game_name} - #"):
+            counter += 1
+
+    vc = await rp.guild.create_voice_channel(f"{game_name} - #{counter}",
+                                             category=category)
+    await vc.edit(position=channel_below_position + 0)
+    prot_delay_hours = config.EVENT_CHANNEL_GRACE_PERIOD_HOURS
+    scheduling.channel_start_grace_period(vc, prot_delay_hours*3600)
+
+    message = await rp.channel.send(f"{rp.member.mention} "
+                                    f"Connect to {vc.mention}. "
+                                    f"Your channel will stay open for "
+                                    f"{prot_delay_hours} hours. "
+                                    f"After that, it gets deleted as soon as "
+                                    f"it empties out.")
+    scheduling.message_delayed_delete(message)
+
+    return # will always remove emoji reaction
+
+
 def side_games_deletion_callback(voice_channel, games_channel_id):
     '''
     Callback for automatic deletion of side games channels.
@@ -178,6 +227,13 @@ async def add_first_emojis(message):
         return # ignore non-admin message
     if checks.author_is_me(message):
         return # ignore bot messages
+
+    if checks.is_event_channel(message.channel):
+        translations = get_emoji_event_channels_translations(message)
+        for emoji in translations.keys():
+            await message.add_reaction(emoji)
+        return # return if message in event channel
+
     if not checks.is_side_games_channel(message.channel):
         return # ignore messages in non-games channels
 
@@ -196,7 +252,7 @@ def get_emoji_side_game_translations(
     '''
 
     translations = {}
-    pattern = r"> *([^ \n]+) ([^\n]+)"
+    pattern = r"> *([^ \n]+) +([^\n]+)"
     for match in re.finditer(pattern, message.content):
         expected_emoji, game_name = match.group(1,2)
         translations[expected_emoji] = game_name
@@ -204,20 +260,20 @@ def get_emoji_side_game_translations(
 
 
 def get_emoji_event_channels_translations(
-    message: discord.Message) -> typing.Dict[str, typing.Tuple[str, int]]:
+    message: discord.Message) -> typing.Dict[str, typing.Tuple[str, str]]:
     '''
     Scans the message for event menu entries (see `activate_event_channel`
     command) and returns a dict that contains all mapping from emojis to game
-    names and channel_below_ids.
+    names and channel_below_names.
     Note that the dict contains the emojis in their string representation (as
     returned by `str(emoji)`).
     '''
 
     translations = {}
-    pattern = r'> *([^ \n]+) ([^\n]+) \[Above "([^\n]+)"\]'
+    pattern = r'> *([^ \n]+) +([^\n]+) \[Above "([^\n]+)"\]'
     for match in re.finditer(pattern, message.content):
-        expected_emoji, game_name, channel_below_id = match.group(1,2,3)
-        translations[expected_emoji] = (game_name, channel_below_id)
+        expected_emoji, game_name, channel_below_name = match.group(1,2,3)
+        translations[expected_emoji] = (game_name, channel_below_name)
     return translations
 
 
@@ -228,9 +284,24 @@ def translate_emoji_game_name(message : discord.Message,
     returning the game name associated with the emoji.
     If no matching menu entry is found, None is returned.
     '''
-
+             
     emoji = str(emoji)
 
     # get all emoji-to-role translations by parsing the message
     translations = get_emoji_side_game_translations(message)
+    return translations.get(emoji)
+
+
+def translate_emoji_event_channels(message: discord.Message,
+                              emoji: discord.Emoji) -> typing.Optional[typing.Tuple[str, str]]:
+    '''
+    Scans the message for menu entries (see `activate_event_channel` command),
+    returning the game name and the channel_below_name associated with the emoji.
+    If no matching menu entry is found, None is returned.
+    '''
+
+    emoji = str(emoji)
+
+    # get all emoji-to-role translations by parsing the message
+    translations = get_emoji_event_channels_translations(message)
     return translations.get(emoji)

@@ -68,8 +68,9 @@ async def on_raw_message_edit(payload):
     '''
     message = await bot.get_channel(payload.channel_id) \
         .fetch_message(payload.message_id)
-    if payload.channel_id not in db.games_channels:
-        return # ignore message outside of side games channels
+    if payload.channel_id not in db.games_channels and \
+            payload.channel_id not in db.event_channels:
+        return # ignore message outside of side games and event channels
 
     await message.clear_reactions()
     await emoji_handling.add_first_emojis(message)
@@ -278,6 +279,73 @@ async def deactivate_side_games(ctx):
     scheduling.message_delayed_delete(message)
 
     del db.games_channels[ctx.channel.id]
+
+
+@bot.command(aliases=["aec"])
+@commands.has_any_role(*config.BOT_ADMIN_ROLES)
+@commands.check(checks.check_channel_inactive)
+async def activate_event_channel(ctx):
+    '''
+    Activates the event voice channel feature for this channel.
+    Note that the voice channel creation menu has to be supplied seperately.
+    See "Menu Formatting" below.
+
+    Menu Formatting:
+        The bot watches all menu messages in channels for which this feature
+        is activated.
+        Menu messages are messages that
+        - Have been posted by a member that has any of the bot administrator
+          roles specified in the bot configuration (config.BOT_ADMIN_ROLES).
+        - Contain at least one menu entry (see below).
+
+        Menu entries are lines in a menu message that have the following
+        format:
+        ``
+        > EMOJI EVENT_NAME [Above "CHANNEL_BELOW_NAME"]
+        ``
+        `EMOJI` must be either a Unicode emoji or a custom emoji.
+        `EVENT_NAME` must be a sequence of any characters except a
+        line-break.
+        `CHANNEL_BELOW_NAME` must be the name of the voice channel above which the
+        voice channel will be created. Note: If the name of the voice channel changes
+        it must be changed manually in the menu entry too.
+        Note that the quote character (`>`) has to be the first character in
+        the line.
+
+        There can be multiple menu entries per menu and there can be multiple
+        menus per channel.
+
+        Example:
+            ``
+            > :map: Strategy Games [Above "Lobby"]
+            > :Minecraft: Minecraft [Above "EFT - #1"]
+            ``
+
+    To deactivate this feature, use the `deactivate_party` command.
+    '''
+
+    await ctx.message.delete()
+    message = await ctx.send(f"Channel activated for event voice "
+                            f"channel creation.")
+    scheduling.message_delayed_delete(message)
+
+    db.event_channels.add(ctx.channel.id)
+
+
+@bot.command(aliases=["dec"])
+@commands.has_any_role(*config.BOT_ADMIN_ROLES)
+@commands.check(checks.check_event_channel)
+async def deactivate_event_channel(ctx):
+    '''
+    Deactivates the side game voice channel feature for this channel.
+    '''
+
+    await ctx.message.delete()
+    message = await ctx.send(f"Event voice channel creation disabled for "
+                             f"this channel.")
+    scheduling.message_delayed_delete(message)
+
+    del db.event_channels[ctx.channel.id]
 
 
 ###############################################################################

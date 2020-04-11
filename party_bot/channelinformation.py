@@ -10,6 +10,32 @@ import sys
 from BTrees.OOBTree import TreeSet
 
 
+async def fetch_reference_channel(reference_channel_id, guild):
+    # ugly hack to avoid cache inconsistency
+    # and work around the APIs broken position data
+    #
+    # the API can give us positions with gaps but editing any position
+    # will first compact the existing positions and then apply the edit
+    #
+    # this can cause position edits to miss by one
+    # to fix this, we collect all VCs and then get their compacted position
+    channels = guild.voice_channels
+    seen_vcs = []
+    ref_channel = None
+    for c in channels:
+        seen_vcs.append((c.position, c))
+        if c.id == reference_channel_id:
+            ref_channel = (c.position, c)
+
+    sorted_vc_list = sorted(seen_vcs,
+                            # It is possible for two VCs to have the same
+                            # position value (WTF?), so we use IDs as
+                            # secondary sorting key
+                            key=lambda tup: (tup[0], tup[1].id))
+    ref_channel_compacted_pos = sorted_vc_list.index(ref_channel)
+    return (ref_channel[1], ref_channel_compacted_pos)
+
+
 class _BaseChannelInformation(persistent.Persistent):
 
     def __init__(self, channel, reference_channel):
@@ -19,34 +45,9 @@ class _BaseChannelInformation(persistent.Persistent):
 
     # compatibility
     async def fetch_channel_above(self, guild):
-        return await self.__fetch_reference_channel(guild)
+        return await fetch_reference_channel(self.__reference_channel_id, guild)
     async def fetch_channel_below(self, guild):
-        return await self.__fetch_reference_channel(guild)
-
-    async def __fetch_reference_channel(self, guild):
-        # ugly hack to avoid cache inconsistency
-        # and work around the APIs broken position data
-        #
-        # the API can give us positions with gaps but editing any position
-        # will first compact the existing positions and then apply the edit
-        #
-        # this can cause position edits to miss by one
-        # to fix this, we collect all VCs and then get their compacted position
-        channels = guild.voice_channels
-        seen_vcs = []
-        ref_channel = None
-        for c in channels:
-            seen_vcs.append((c.position, c))
-            if c.id == self.__reference_channel_id:
-                ref_channel = (c.position, c)
-
-        sorted_vc_list = sorted(seen_vcs,
-                                # It is possible for two VCs to have the same
-                                # position value (WTF?), so we use IDs as
-                                # secondary sorting key
-                                key=lambda tup: (tup[0], tup[1].id))
-        ref_channel_compacted_pos = sorted_vc_list.index(ref_channel)
-        return (ref_channel[1], ref_channel_compacted_pos)
+        return await fetch_reference_channel(self.__reference_channel_id, guild)
 
 
 class PartyChannelInformation(_BaseChannelInformation):
