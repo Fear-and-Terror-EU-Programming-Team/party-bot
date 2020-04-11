@@ -181,6 +181,7 @@ async def handle_react_event_channel(rp: ReactionPayload) -> None:
 
     vc = await rp.guild.create_voice_channel(f"{game_name} - #{counter}",
                                              category=category)
+    db.event_voice_channels.add(vc.id)
     await vc.edit(position=channel_below_position + 0)
     prot_delay_hours = config.EVENT_CHANNEL_GRACE_PERIOD_HOURS
     scheduling.channel_start_grace_period(vc, prot_delay_hours*3600)

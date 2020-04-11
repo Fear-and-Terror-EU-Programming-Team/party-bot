@@ -94,7 +94,7 @@ async def on_voice_state_update(member, before, after):
     if len(channel.members) > 0:  # only react on empty channels
         return
 
-    # ignore channels that are still in grace peroid
+    # ignore channels that are still in grace period
     if channel.id in scheduling.channel_ids_grace_period:
         return
 
@@ -113,6 +113,13 @@ async def on_voice_state_update(member, before, after):
             # Instead, we could simply update owner tracking information
             # whenever someone wants to create a new channel
             emoji_handling.side_games_deletion_callback(channel, gc_id)
+
+    # event channel
+    if channel.id in db.event_voice_channels:
+        db.event_voice_channels.remove(channel.id)
+        await channel.delete()
+
+    transaction.commit()
 
 
 ###############################################################################

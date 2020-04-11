@@ -20,6 +20,7 @@ class _Database(persistent.Persistent):
         self.party_channels = persistent.mapping.PersistentMapping()
         self.games_channels = persistent.mapping.PersistentMapping()
         self.event_channels = BTrees.OOBTree.OOSet()
+        self.event_voice_channels = BTrees.OOBTree.OOSet()
 
 
 sys.stdout.write("Starting database...")
