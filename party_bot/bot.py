@@ -352,7 +352,7 @@ async def deactivate_event_channel(ctx):
                              f"this channel.")
     scheduling.message_delayed_delete(message)
 
-    del db.event_channels[ctx.channel.id]
+    db.event_channels.remove(ctx.channel.id)
 
 
 ###############################################################################
