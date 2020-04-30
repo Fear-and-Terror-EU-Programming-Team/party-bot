@@ -155,24 +155,24 @@ async def handle_react_side_games(rp : ReactionPayload) -> None:
 
 async def handle_react_event_channel(rp: ReactionPayload) -> None:
     '''
-    Reaction handler for the side games voice channel feature.
+    Reaction handler for the event voice channel feature.
     '''
     translation_tuple = translate_emoji_event_channels(rp.message, rp.emoji)
     if translation_tuple is None:
         return # unknown emoji, ignore reaction
 
-    game_name, channel_below_name = translation_tuple
+    game_name, channel_name, position = translation_tuple
 
     try:
-        channel_below_id = discord.utils.get(rp.guild.voice_channels, name=channel_below_name).id
+        channel_id = discord.utils.get(rp.guild.voice_channels, name=channel_name).id
     except discord.NotFound:
-        message = await rp.channel.send(f"Channel {channel_below_name} not found.")
+        message = await rp.channel.send(f"Channel {channel_name} not found.")
         scheduling.message_delayed_delete(message)
         return
 
-    channel_below, channel_below_position = \
-            await channelinformation.fetch_reference_channel(channel_below_id, rp.guild)
-    category = rp.guild.get_channel(channel_below.category_id)
+    channel, channel_position = \
+            await channelinformation.fetch_reference_channel(channel_id, rp.guild)
+    category = rp.guild.get_channel(channel.category_id)
 
     counter = 1
     for channel in rp.guild.voice_channels:
@@ -182,7 +182,12 @@ async def handle_react_event_channel(rp: ReactionPayload) -> None:
     vc = await rp.guild.create_voice_channel(f"{game_name} - #{counter}",
                                              category=category)
     db.event_voice_channels.add(vc.id)
-    await vc.edit(position=channel_below_position + 0)
+
+    if position: # if True the channel will be created above channel_position
+        await vc.edit(position=channel_position + 0)
+    else: # else (False) it will be created below channel_position
+        await vc.edit(position=channel_position + 1)
+
     prot_delay_hours = config.EVENT_CHANNEL_GRACE_PERIOD_HOURS
     scheduling.channel_start_grace_period(vc, prot_delay_hours*3600)
 
@@ -261,20 +266,23 @@ def get_emoji_side_game_translations(
 
 
 def get_emoji_event_channels_translations(
-    message: discord.Message) -> typing.Dict[str, typing.Tuple[str, str]]:
+    message: discord.Message) -> typing.Dict[str, typing.Tuple[str, str, bool]]:
     '''
     Scans the message for event menu entries (see `activate_event_channel`
     command) and returns a dict that contains all mapping from emojis to game
-    names and channel_below_names.
+    names, channel_names of the channel next to which the channel must be created.
+    If it's above or below this channel is determined by position.
     Note that the dict contains the emojis in their string representation (as
     returned by `str(emoji)`).
     '''
 
     translations = {}
-    pattern = r'> *([^ \n]+) +([^\n]+) \[Above "([^\n]+)"\]'
+    pattern = r'> *([^ \n]+) +([^\n]+) \[(Above|Below) "([^\n]+)"\]'
     for match in re.finditer(pattern, message.content):
-        expected_emoji, game_name, channel_below_name = match.group(1,2,3)
-        translations[expected_emoji] = (game_name, channel_below_name)
+        expected_emoji, game_name, position, channel_name = match.group(1,2,3,4)
+        pos = {"Above": True, "Below": False}
+        position = pos[position]
+        translations[expected_emoji] = (game_name, channel_name, position)
     return translations
 
 
@@ -294,10 +302,12 @@ def translate_emoji_game_name(message : discord.Message,
 
 
 def translate_emoji_event_channels(message: discord.Message,
-                              emoji: discord.Emoji) -> typing.Optional[typing.Tuple[str, str]]:
+                              emoji: discord.Emoji) -> typing.Optional[typing.Tuple[str, str, bool]]:
     '''
     Scans the message for menu entries (see `activate_event_channel` command),
-    returning the game name and the channel_below_name associated with the emoji.
+    returning the game name and the channel_name of the channel associated with the
+    emoji next to which the channel must be created. If it's above or below this
+    channel is determined by position.
     If no matching menu entry is found, None is returned.
     '''
 
