@@ -39,8 +39,8 @@ def message_delayed_delete(message, delay=config.MESSAGE_DELETE_DELAY_SECONDS):
 
 async def _message_delayed_delete(message_id, channel_id):
     channel = config.bot.get_channel(channel_id)
-    message = await channel.fetch_message(message_id)
     try:
+        message = await channel.fetch_message(message_id)
         await message.delete()
     except discord.NotFound:
         pass # message was already deleted, ignore
