@@ -26,7 +26,9 @@ from strings import Strings
 from synchronization import synchronized
 
 
-bot = commands.Bot(command_prefix=config.BOT_CMD_PREFIX)
+intents = discord.Intents.all()
+
+bot = commands.Bot(command_prefix=config.BOT_CMD_PREFIX, intents=intents)
 
 ###############################################################################
 ## Events
