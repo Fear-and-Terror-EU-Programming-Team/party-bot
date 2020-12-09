@@ -54,7 +54,9 @@ class _BaseChannelInformation(persistent.Persistent):
 class PartyChannelInformation(_BaseChannelInformation):
     """Contains the relevant information about an active channel."""
 
-    def __init__(self, game_name, channel, max_slots, channel_above, open_parties):
+    def __init__(
+        self, game_name, channel, max_slots, channel_above, open_parties, division_admin
+    ):
         super(PartyChannelInformation, self).__init__(channel, channel_above)
         # Store all objects as their IDs to allow easier serialization
         self.game_name = game_name
@@ -63,11 +65,12 @@ class PartyChannelInformation(_BaseChannelInformation):
         self.__active_party_members_and_leaders = persistent.mapping.PersistentMapping()
         self.open_parties = open_parties
         self.active_voice_channels = TreeSet()
+        self.division_admin_id = division_admin.id
 
     async def get_party_message_of_user(self, member):
         channel = member.guild.get_channel(self.id)
         message_id = self.__active_party_members_and_leaders.get(member.id)
-        if message_id == None:
+        if message_id is None:
             return None
 
         try:

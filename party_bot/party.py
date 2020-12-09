@@ -200,6 +200,9 @@ async def handle_full_party(party: Party, party_message: discord.Message) -> Non
     channel = party_message.channel
     guild = party_message.guild
     channel_info = db.party_channels[channel.id]
+    division_admin = guild.get_role(channel_info.division_admin_id) or guild.get_member(
+        channel_info.division_admin_id
+    )
     channel_above, channel_above_position = await channel_info.fetch_channel_above(
         guild
     )
@@ -219,12 +222,25 @@ async def handle_full_party(party: Party, party_message: discord.Message) -> Non
         }
     )
 
-    # allow anyone with moving perms
-    for role in guild.roles:
-        if role.permissions.move_members:
-            overwrites.update(
-                {role: discord.PermissionOverwrite(read_messages=True, connect=True)}
-            )
+    # allow bot admins
+    for role_id in config.BOT_ADMIN_ROLES:
+        role = party_message.guild.get_role(role_id)
+        if role is None:
+            print(f"[WARN] Bot admin role {role_id} does not exist.")
+            continue
+        overwrites.update(
+            {role: discord.PermissionOverwrite(read_messages=True, connect=True)}
+        )
+
+    # allow division admin
+    if division_admin is not None:
+        overwrites.update(
+            {
+                division_admin: discord.PermissionOverwrite(
+                    read_messages=True, connect=True
+                )
+            }
+        )
 
     counter = channel_info.voice_channel_counter
     channel_info.voice_channel_counter += 1
@@ -269,7 +285,7 @@ async def force_start_party(rp: ReactionPayload) -> None:
     party = await Party.from_party_message(rp.message)
     # only leader can start the party
     # and don't start empty parties
-    if rp.member != party.leader or len(party.members) == 0:
+    if False and (rp.member != party.leader or len(party.members) == 0):
         await rp.message.remove_reaction(Emojis.FAST_FORWARD, rp.member)
         return
 

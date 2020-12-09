@@ -3,36 +3,28 @@
 """
 Fear and Terror's bot for party matchmaking on Discord
 """
+from typing import Union, Optional
 
-import asyncio
+import discord
+import transaction
+from discord.ext import commands
+
 import checks
 import config
-import discord
 import emoji_handling
 import error_handling
 import party
-import re
 import scheduling
-import sys
-import transaction
-import typing
 from channelinformation import PartyChannelInformation, GamesChannelInformation
 from database import db
 from emojis import Emojis
-from discord.ext import commands
-from party import Party
-from pprint import pprint
 from strings import Strings
-from synchronization import synchronized
-
 
 intents = discord.Intents.all()
 
 bot = commands.Bot(command_prefix=config.BOT_CMD_PREFIX, intents=intents)
 
-###############################################################################
-## Events
-###############################################################################
+
 @bot.event
 async def on_ready():
     config.init_config(bot)
@@ -126,15 +118,15 @@ async def on_voice_state_update(member, before, after):
     transaction.commit()
 
 
-###############################################################################
-## Commands
-###############################################################################
-
-
 @bot.command(aliases=["ap"])
 @commands.has_any_role(*config.BOT_ADMIN_ROLES)
 async def activate_party(
-    ctx, game_name: str, max_slots: int, channel_above_id: int, open_parties: str
+    ctx,
+    game_name: str,
+    max_slots: int,
+    channel_above_id: int,
+    open_parties: str,
+    division_admin: Optional[Union[discord.Member, discord.Role]],
 ):
     """
     Activates the party matchmaking feature for this channel, spawning a party
@@ -150,6 +142,8 @@ async def activate_party(
             Determines whether non-party members can join the voice chat.
             Note that anyone with the "Move Members" permission can always
             join party voice channels.
+        division_admin (Optional, Role or Member): Role or member that will be able to
+            join all parties, even if CLOSED_PARTIES is set.
 
     To deactivate the party matchmaking feature and remove the party creation
     menu, use the `deactivate_party` command.
@@ -185,7 +179,7 @@ async def activate_party(
         scheduling.message_delayed_delete(m)
 
     channel_info = PartyChannelInformation(
-        game_name, ctx.channel, max_slots, channel_above, open_parties
+        game_name, ctx.channel, max_slots, channel_above, open_parties, division_admin
     )
 
     db.party_channels[ctx.channel.id] = channel_info
@@ -366,10 +360,6 @@ async def deactivate_event_channel(ctx):
 
     db.event_channels.remove(ctx.channel.id)
 
-
-###############################################################################
-## Startup
-###############################################################################
 
 if __name__ == "__main__":
     bot.run(config.BOT_TOKEN)

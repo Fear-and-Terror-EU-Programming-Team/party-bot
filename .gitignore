@@ -204,3 +204,5 @@ fabric.properties
 *.fs*
 *.sqlite
 .idea
+
+venv
