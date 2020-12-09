@@ -285,7 +285,7 @@ async def force_start_party(rp: ReactionPayload) -> None:
     party = await Party.from_party_message(rp.message)
     # only leader can start the party
     # and don't start empty parties
-    if False and (rp.member != party.leader or len(party.members) == 0):
+    if rp.member != party.leader or len(party.members) == 0:
         await rp.message.remove_reaction(Emojis.FAST_FORWARD, rp.member)
         return
 
