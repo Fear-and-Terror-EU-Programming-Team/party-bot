@@ -1,8 +1,8 @@
 #!/usr/bin/env -S python3 -u
 
-'''
+"""
 Fear and Terror's bot for party matchmaking on Discord
-'''
+"""
 
 import asyncio
 import checks
@@ -36,10 +36,10 @@ bot = commands.Bot(command_prefix=config.BOT_CMD_PREFIX, intents=intents)
 @bot.event
 async def on_ready():
     config.init_config(bot)
-    print('Logged in as')
+    print("Logged in as")
     print(bot.user.name)
     print(bot.user.id)
-    print('------')
+    print("------")
     scheduling.init_scheduler()
 
 
@@ -64,15 +64,18 @@ async def on_raw_reaction_remove(payload):
 
 @bot.event
 async def on_raw_message_edit(payload):
-    '''
+    """
     Message edit handler that updates the bot's emoji reactions when a menu
     message (see `activate_side_games`) is edited.
-    '''
-    message = await bot.get_channel(payload.channel_id) \
-        .fetch_message(payload.message_id)
-    if payload.channel_id not in db.games_channels and \
-            payload.channel_id not in db.event_channels:
-        return # ignore message outside of side games and event channels
+    """
+    message = await bot.get_channel(payload.channel_id).fetch_message(
+        payload.message_id
+    )
+    if (
+        payload.channel_id not in db.games_channels
+        and payload.channel_id not in db.event_channels
+    ):
+        return  # ignore message outside of side games and event channels
 
     await message.clear_reactions()
     await emoji_handling.add_first_emojis(message)
@@ -85,13 +88,12 @@ async def on_command_error(ctx, error):
 
 @bot.event
 async def on_voice_state_update(member, before, after):
-    '''
+    """
     Event handler that takes cares of deleting bot-created channels when they
     empty out.
-    '''
+    """
     channel = before.channel
-    if channel is None \
-            or after.channel == channel:  # only tracks disconnects
+    if channel is None or after.channel == channel:  # only tracks disconnects
         return
     if len(channel.members) > 0:  # only react on empty channels
         return
@@ -128,12 +130,13 @@ async def on_voice_state_update(member, before, after):
 ## Commands
 ###############################################################################
 
-@bot.command(aliases = ["ap"])
+
+@bot.command(aliases=["ap"])
 @commands.has_any_role(*config.BOT_ADMIN_ROLES)
-async def activate_party(ctx, game_name: str,
-                          max_slots: int, channel_above_id: int,
-                          open_parties : str):
-    '''
+async def activate_party(
+    ctx, game_name: str, max_slots: int, channel_above_id: int, open_parties: str
+):
+    """
     Activates the party matchmaking feature for this channel, spawning a party
     creation menu.
 
@@ -152,10 +155,11 @@ async def activate_party(ctx, game_name: str,
     menu, use the `deactivate_party` command.
 
     To edit the current configuration, simply run this command again.
-    '''
+    """
 
-    if not checks.is_channel_inactive(ctx.channel) \
-            and not checks.is_party_channel(ctx.channel):
+    if not checks.is_channel_inactive(ctx.channel) and not checks.is_party_channel(
+        ctx.channel
+    ):
         raise error_handling.ChannelAlreadyActiveError()
 
     if open_parties == Strings.OPEN_PARTIES:
@@ -175,33 +179,37 @@ async def activate_party(ctx, game_name: str,
         m = await ctx.send(f"Channel configuration updated.")
         scheduling.message_delayed_delete(m)
     else:
-        m = await ctx.send(f"This channel has been activated for party "
-                           f"matchmaking.")
+        m = await ctx.send(
+            f"This channel has been activated for party " f"matchmaking."
+        )
         scheduling.message_delayed_delete(m)
 
-    channel_info = PartyChannelInformation(game_name, ctx.channel, max_slots,
-                                           channel_above, open_parties)
+    channel_info = PartyChannelInformation(
+        game_name, ctx.channel, max_slots, channel_above, open_parties
+    )
 
     db.party_channels[ctx.channel.id] = channel_info
     await ctx.channel.purge(limit=100, check=checks.author_is_me)
-    embed = discord.Embed.from_dict({
-        "title": "Game: %s" % game_name,
-        "color": 0x0000FF,
-        "description": "React with %s to start a party for %s." \
-                       % (Emojis.TADA, game_name)
-    })
+    embed = discord.Embed.from_dict(
+        {
+            "title": "Game: %s" % game_name,
+            "color": 0x0000FF,
+            "description": "React with %s to start a party for %s."
+            % (Emojis.TADA, game_name),
+        }
+    )
     message = await ctx.send("", embed=embed)
     await message.add_reaction(Emojis.TADA)
 
 
-@bot.command(aliases = ["dp"])
+@bot.command(aliases=["dp"])
 @commands.has_any_role(*config.BOT_ADMIN_ROLES)
 @commands.check(checks.check_party_channel)
 async def deactivate_party(ctx):
-    '''
+    """
     Deactivates the party matchmaking feature for this channel, removing the
     party creation menu.
-    '''
+    """
     del db.party_channels[ctx.channel.id]
     await ctx.message.delete()
     await ctx.channel.purge(limit=100, check=checks.author_is_me)
@@ -217,11 +225,11 @@ async def deactivate_party(ctx):
 #            await channel.delete()
 
 
-@bot.command(aliases = ["asg"])
+@bot.command(aliases=["asg"])
 @commands.has_any_role(*config.BOT_ADMIN_ROLES)
 @commands.check(checks.check_channel_inactive)
 async def activate_side_games(ctx, channel_below_id: int):
-    '''
+    """
     Activates the side game voice channel feature for this channel.
     Note that the voice channel creation menu has to be supplied seperately.
     See "Menu Formatting" below.
@@ -259,32 +267,34 @@ async def activate_side_games(ctx, channel_below_id: int):
             ``
 
     To deactivate this feature, use the `deactivate_party` command.
-    '''
+    """
 
     channel_below = ctx.guild.get_channel(channel_below_id)
     if channel_below is None:
         raise commands.errors.BadArgument()
 
     await ctx.message.delete()
-    message = await ctx.send(f"Channel activated for side game voice "
-                             f"channel creation.")
+    message = await ctx.send(
+        f"Channel activated for side game voice " f"channel creation."
+    )
     scheduling.message_delayed_delete(message)
 
     channel_info = GamesChannelInformation(ctx.channel, channel_below)
     db.games_channels[ctx.channel.id] = channel_info
 
 
-@bot.command(aliases = ["dsg"])
+@bot.command(aliases=["dsg"])
 @commands.has_any_role(*config.BOT_ADMIN_ROLES)
 @commands.check(checks.check_side_games_channel)
 async def deactivate_side_games(ctx):
-    '''
+    """
     Deactivates the side game voice channel feature for this channel.
-    '''
+    """
 
     await ctx.message.delete()
-    message = await ctx.send(f"Side game voice channel creation disabled for "
-                             f"this channel.")
+    message = await ctx.send(
+        f"Side game voice channel creation disabled for " f"this channel."
+    )
     scheduling.message_delayed_delete(message)
 
     del db.games_channels[ctx.channel.id]
@@ -294,7 +304,7 @@ async def deactivate_side_games(ctx):
 @commands.has_any_role(*config.BOT_ADMIN_ROLES)
 @commands.check(checks.check_channel_inactive)
 async def activate_event_channel(ctx):
-    '''
+    """
     Activates the event voice channel feature for this channel.
     Note that the voice channel creation menu has to be supplied seperately.
     See "Menu Formatting" below.
@@ -331,11 +341,10 @@ async def activate_event_channel(ctx):
             ``
 
     To deactivate this feature, use the `deactivate_party` command.
-    '''
+    """
 
     await ctx.message.delete()
-    message = await ctx.send(f"Channel activated for event voice "
-                            f"channel creation.")
+    message = await ctx.send(f"Channel activated for event voice " f"channel creation.")
     scheduling.message_delayed_delete(message)
 
     db.event_channels.add(ctx.channel.id)
@@ -345,13 +354,14 @@ async def activate_event_channel(ctx):
 @commands.has_any_role(*config.BOT_ADMIN_ROLES)
 @commands.check(checks.check_event_channel)
 async def deactivate_event_channel(ctx):
-    '''
+    """
     Deactivates the side game voice channel feature for this channel.
-    '''
+    """
 
     await ctx.message.delete()
-    message = await ctx.send(f"Event voice channel creation disabled for "
-                             f"this channel.")
+    message = await ctx.send(
+        f"Event voice channel creation disabled for " f"this channel."
+    )
     scheduling.message_delayed_delete(message)
 
     db.event_channels.remove(ctx.channel.id)

@@ -1,10 +1,10 @@
-'''
+"""
 This module implements the persistency necessary to preserve channel
 configurations across bot restarts.
 
 Importing this module will create / load the database and populate the `db`
 attribute.
-'''
+"""
 
 import BTrees
 import config
@@ -14,8 +14,8 @@ import sys
 import ZODB
 from dataclasses import dataclass
 
-class _Database(persistent.Persistent):
 
+class _Database(persistent.Persistent):
     def __init__(self):
         self.party_channels = persistent.mapping.PersistentMapping()
         self.games_channels = persistent.mapping.PersistentMapping()

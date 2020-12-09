@@ -1,7 +1,8 @@
 import config
 
-class ReactionPayload():
-    '''
+
+class ReactionPayload:
+    """
     Object containing context information for an emoji reaction, such as
     the channel, the member that made the reaction, and the emoji itself.
 
@@ -10,7 +11,8 @@ class ReactionPayload():
 
     Do not create a ReactionPayload object manually.
     Instead, use the `unwrap_payload` function.
-    '''
+    """
+
     # this might be a bit heavy on the API
     async def _init(self, payload):
         self.guild = config.bot.get_guild(payload.guild_id)
@@ -21,12 +23,11 @@ class ReactionPayload():
 
 
 async def unwrap_payload(payload):
-    '''
+    """
     Converts a payload object supplied to `on_raw_reaction_add` etc. into a
     more useful `ReactionPayload` object containing Discord objects instead of
     IDs.
-    '''
+    """
     rp = ReactionPayload()
     await rp._init(payload)
     return rp
-
