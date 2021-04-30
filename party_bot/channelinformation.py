@@ -65,7 +65,11 @@ class PartyChannelInformation(_BaseChannelInformation):
         self.__active_party_members_and_leaders = persistent.mapping.PersistentMapping()
         self.open_parties = open_parties
         self.active_voice_channels = TreeSet()
-        self.division_admin_id = division_admin.id
+
+        if division_admin is not None:
+            self.division_admin_id = division_admin.id
+        else:
+            self.division_admin_id = -1
 
     async def get_party_message_of_user(self, member):
         channel = member.guild.get_channel(self.id)
