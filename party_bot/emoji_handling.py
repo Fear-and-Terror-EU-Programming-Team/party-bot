@@ -4,6 +4,7 @@ one of the bot's features is enabled.
 
 Most of the side games voice channel feature is implemented here.
 """
+from discord import PermissionOverwrite
 
 import channelinformation
 import checks
@@ -136,8 +137,11 @@ async def handle_react_side_games(rp: ReactionPayload) -> None:
     )
     category = rp.guild.get_channel(channel_below.category_id)
 
+    # give creator the ability to change permissions
+    overwrites = {rp.member: PermissionOverwrite(manage_permissions=True)}
+
     vc = await rp.guild.create_voice_channel(
-        f"{game_name} - #{counter}", category=category
+        f"{game_name} - #{counter}", category=category, overwrites=overwrites
     )
     await vc.edit(position=channel_below_position + 0)
     channel_info.channel_owners.update({rp.member.id: vc.id})
@@ -155,7 +159,8 @@ async def handle_react_side_games(rp: ReactionPayload) -> None:
         f"Your channel will stay open for "
         f"{prot_delay_hours} hours. "
         f"After that, it gets deleted as soon as "
-        f"it empties out."
+        f"it empties out. "
+        f"You can change the channel's permissions as you see fit."
     )
     scheduling.message_delayed_delete(message)
 
@@ -189,8 +194,11 @@ async def handle_react_event_channel(rp: ReactionPayload) -> None:
         if channel.name.startswith(f"{game_name} - #"):
             counter += 1
 
+    # give creator the ability to change permissions
+    overwrites = {rp.member: PermissionOverwrite(manage_permissions=True)}
+
     vc = await rp.guild.create_voice_channel(
-        f"{game_name} - #{counter}", category=category
+        f"{game_name} - #{counter}", category=category, overwrites=overwrites
     )
     db.event_voice_channels.add(vc.id)
 
@@ -208,7 +216,8 @@ async def handle_react_event_channel(rp: ReactionPayload) -> None:
         f"Your channel will stay open for "
         f"{prot_delay_hours} hours. "
         f"After that, it gets deleted as soon as "
-        f"it empties out."
+        f"it empties out. "
+        f"You can change the channel's permissions as you see fit."
     )
     scheduling.message_delayed_delete(message)
 
